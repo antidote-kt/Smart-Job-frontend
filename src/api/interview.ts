@@ -28,8 +28,8 @@ export interface InterviewVO {
   totalQuestions: number
   answeredQuestions: number
   overallScore: number // 后端是Double
-  startTime?: string // 后端是LocalDateTime，前端接收为ISO字符串
-  endTime?: string
+  startTime?: string | number[] // 后端LocalDateTime可能序列化为字符串或数组
+  endTime?: string | number[]
   report?: InterviewReport // 面试报告信息（已完成的面试才会包含）
 }
 
@@ -161,8 +161,8 @@ export const getPositionsApi = (): Promise<JobPosition[]> => {
       category: item.category,
       level: item.level,
       description: item.description,
-      requirements: item.requirements ? (typeof item.requirements === 'string' ? item.requirements.split(',').map((r: string) => r.trim()) : item.requirements || []) : [],
-      skills: item.skills ? (typeof item.skills === 'string' ? item.skills.split(',').map((s: string) => s.trim()) : item.skills || []) : []
+      requirements: Array.isArray(item.requirements) ? item.requirements.filter(r => r && r.trim()) : [],
+      skills: Array.isArray(item.skills) ? item.skills.filter(s => s && s.trim()) : []
     }));
   });
 };
@@ -201,8 +201,8 @@ export const getInterviewEvaluationsApi = (id: number): Promise<AnswerEvaluation
 export const createPositionApi = (data: JobPositionCreateDTO) => {
   const formattedData = {
     ...data,
-    requirements: Array.isArray(data.requirements) ? data.requirements.join(',') : data.requirements,
-    skills: Array.isArray(data.skills) ? data.skills.join(',') : data.skills
+    requirements: data.requirements.filter(r => r && r.trim()),
+    skills: data.skills.filter(s => s && s.trim())
   };
   return request.post<JobPosition>('/positions', formattedData);
 };
@@ -211,8 +211,8 @@ export const createPositionApi = (data: JobPositionCreateDTO) => {
 export const updatePositionApi = (id: number, data: JobPositionUpdateDTO) => {
   const formattedData = {
     ...data,
-    requirements: data.requirements && Array.isArray(data.requirements) ? data.requirements.join(',') : data.requirements,
-    skills: data.skills && Array.isArray(data.skills) ? data.skills.join(',') : data.skills
+    requirements: data.requirements ? data.requirements.filter(r => r && r.trim()) : undefined,
+    skills: data.skills ? data.skills.filter(s => s && s.trim()) : undefined
   };
   return request.put<JobPosition>(`/positions/${id}`, formattedData);
 };

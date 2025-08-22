@@ -28,10 +28,20 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
+    console.log('✅ API Success:', response.config.url, response.status)
     // 成功回调，直接返回data部分
     return response.data
   },
   (error) => {
+    console.error('❌ API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      statusText: error.response?.statusText,
+      data: error.response?.data,
+      message: error.message
+    })
+    
     // 失败回调
     // 如果是登录接口的401错误，不要重定向
     if (error.config?.url === '/auth/login' && error.response?.status === 401) {
@@ -47,6 +57,8 @@ request.interceptors.response.use(
     } else if (error.response?.data?.message) {
       // 如果后端返回了具体的错误消息，显示它
       ElMessage.error(error.response.data.message)
+    } else if (error.message) {
+      ElMessage.error(`请求失败: ${error.message}`)
     }
     
     return Promise.reject(error)

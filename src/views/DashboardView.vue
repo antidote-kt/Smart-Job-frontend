@@ -17,7 +17,7 @@
 
             <!-- Statistics Cards -->
             <el-row :gutter="20" class="stats-row">
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon total">
@@ -30,7 +30,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon completed">
@@ -43,7 +43,7 @@
                   </div>
                 </el-card>
               </el-col>
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon score">
@@ -52,19 +52,6 @@
                     <div class="stat-info">
                       <div class="stat-number">{{ averageScore.toFixed(1) }}</div>
                       <div class="stat-label">平均分数</div>
-                    </div>
-                  </div>
-                </el-card>
-              </el-col>
-              <el-col :span="6">
-                <el-card class="stat-card">
-                  <div class="stat-content">
-                    <div class="stat-icon improvement">
-                      <el-icon size="24"><TrendCharts /></el-icon>
-                    </div>
-                    <div class="stat-info">
-                      <div class="stat-number">{{ improvementRate }}%</div>
-                      <div class="stat-label">提升幅度</div>
                     </div>
                   </div>
                 </el-card>
@@ -85,21 +72,18 @@
               <el-table :data="recentSessions" style="width: 100%" v-loading="isLoading">
                 <el-table-column prop="sessionName" label="面试名称" width="200">
                   <template #default="{ row }">
-                    <span>{{ row.sessionName || `面试 #${row.id}` }}</span>
+                    <span>{{ formatSessionName(row.sessionName, row.id) }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="position" label="岗位" width="150" />
                 <el-table-column prop="status" label="状态" width="100">
                   <template #default="{ row }">
-                    <el-tag :type="getStatusType(row.status)">
-                      {{ getStatusText(row.status) }}
-                    </el-tag>
+                    <StatusTag :status="row.status" />
                   </template>
                 </el-table-column>
                 <el-table-column prop="overallScore" label="总分" width="100">
                   <template #default="{ row }">
-                    <span v-if="row.overallScore > 0">{{ row.overallScore }}分</span>
-                    <span v-else>-</span>
+                    <ScoreDisplay :score="row.overallScore" suffix="分" :precision="0" />
                   </template>
                 </el-table-column>
                 <el-table-column prop="startTime" label="开始时间" width="180">
@@ -111,7 +95,7 @@
                   <template #default="{ row }">
                     <div style="display: flex; gap: 8px; align-items: center;">
                       <el-button
-                        v-if="String(row.status) === '1' || row.status === 'IN_PROGRESS'"
+                        v-if="isInProgress(row.status)"
                         type="primary"
                         text
                         @click="resumeInterview(row)"
@@ -120,7 +104,7 @@
                         继续面试
                       </el-button>
                       <el-button
-                        v-if="String(row.status) === '2' || row.status === 'COMPLETED'"
+                        v-if="isCompleted(row.status)"
                         type="success"
                         text
                         @click="viewReport(row)"
@@ -138,46 +122,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/modules/auth'
 import { useInterviewStore } from '@/stores/modules/interview'
-import { Plus, Document, Check, TrendCharts, Timer } from '@element-plus/icons-vue'
+import { Plus, Document, Check, TrendCharts } from '@element-plus/icons-vue'
 import type { InterviewVO } from '@/api/interview'
+
+import StatusTag from '@/components/StatusTag.vue'
+import ScoreDisplay from '@/components/ScoreDisplay.vue'
+import StatisticCard from '@/components/StatisticCard.vue'
+import { useStatistics } from '@/composables/useStatistics'
+import { useInterviewStatus } from '@/composables/useInterviewStatus'
+import { formatDate, formatSessionName } from '@/utils/formatters'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const interviewStore = useInterviewStore()
+const { isInProgress, isCompleted } = useInterviewStatus()
+const { totalSessions, completedSessions, averageScore, recentSessions } = useStatistics(
+  computed(() => interviewStore.sessions)
+)
 
 const isLoading = ref(false)
-
-const totalSessions = computed(() => interviewStore.sessions.length)
-const completedSessions = computed(() => 
-  interviewStore.sessions.filter(s => String(s.status) === '2' || s.status === 'COMPLETED').length
-)
-const averageScore = computed(() => {
-  const completed = interviewStore.sessions.filter(s => (String(s.status) === '2' || s.status === 'COMPLETED') && s.overallScore > 0)
-  if (completed.length === 0) return 0
-  return completed.reduce((sum, s) => sum + s.overallScore, 0) / completed.length
-})
-const improvementRate = computed(() => {
-  // Simple calculation - could be improved with more sophisticated logic
-  const completed = interviewStore.sessions.filter(s => (String(s.status) === '2' || s.status === 'COMPLETED') && s.overallScore > 0)
-  if (completed.length < 2) return 0
-  const recent = completed.slice(-3)
-  const earlier = completed.slice(0, -3)
-  if (earlier.length === 0) return 0
-  
-  const recentAvg = recent.reduce((sum, s) => sum + s.overallScore, 0) / recent.length
-  const earlierAvg = earlier.reduce((sum, s) => sum + s.overallScore, 0) / earlier.length
-  
-  return Math.round(((recentAvg - earlierAvg) / earlierAvg) * 100)
-})
-
-const recentSessions = computed(() => 
-  interviewStore.sessions.slice(0, 5)
-)
 
 onMounted(async () => {
   await loadDashboardData()
@@ -191,52 +159,6 @@ const loadDashboardData = async () => {
     ElMessage.error('加载数据失败')
   } finally {
     isLoading.value = false
-  }
-}
-
-
-const getStatusType = (status: string | number) => {
-  // 后端状态: 1-进行中, 2-已完成, 3-已取消
-  const statusStr = String(status)
-  switch (statusStr) {
-    case 'COMPLETED':
-    case '2': return 'success'  // 已完成
-    case 'IN_PROGRESS':
-    case '1': return 'warning'  // 进行中  
-    case 'CANCELLED':
-    case '3': return 'danger'   // 已取消
-    default: return 'info'
-  }
-}
-
-const getStatusText = (status: string | number) => {
-  // 后端状态: 1-进行中, 2-已完成, 3-已取消
-  const statusStr = String(status)
-  switch (statusStr) {
-    case 'COMPLETED':
-    case '2': return '已完成'
-    case 'IN_PROGRESS':
-    case '1': return '进行中'
-    case 'CANCELLED':
-    case '3': return '已取消'
-    default: return '未知'
-  }
-}
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return '-'
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return '-'
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch {
-    return '-'
   }
 }
 
@@ -353,10 +275,6 @@ const viewReport = (session: InterviewVO) => {
 
 .stat-icon.score {
   background: #e6a23c;
-}
-
-.stat-icon.improvement {
-  background: #f56c6c;
 }
 
 .stat-info {

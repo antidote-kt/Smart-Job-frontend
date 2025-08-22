@@ -1,18 +1,15 @@
 <template>
   <div class="positions-view">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-actions">
-          <el-button type="primary" :icon="Plus" @click="openCreateDialog">
-            新增岗位
-          </el-button>
-        </div>
-      </div>
-    </div>
+    <PageHeader title="岗位管理" description="管理面试岗位信息">
+      <template #actions>
+        <el-button type="primary" :icon="Plus" @click="openCreateDialog">
+          新增岗位
+        </el-button>
+      </template>
+    </PageHeader>
 
-    <!-- 搜索和过滤 -->
-    <el-card class="filter-card">
+    <!-- 搜索过滤 -->
+    <el-card class="filter-card" shadow="never">
       <el-row :gutter="20">
         <el-col :span="6">
           <el-input
@@ -87,40 +84,28 @@
                 </el-tag>
               </div>
             </div>
-            <div class="position-actions">
-              <el-dropdown trigger="click">
-                <el-button text :icon="MoreFilled" />
-                <template #dropdown>
-                  <el-dropdown-menu>
-                    <el-dropdown-item @click="viewPosition(position)">
-                      <el-icon><View /></el-icon>查看详情
-                    </el-dropdown-item>
-                    <el-dropdown-item @click="editPosition(position)">
-                      <el-icon><Edit /></el-icon>编辑
-                    </el-dropdown-item>
-                    <el-dropdown-item divided @click="deletePosition(position)" style="color: #ef4444;">
-                      <el-icon style="color: #ef4444;"><Close /></el-icon>删除
-                    </el-dropdown-item>
-                  </el-dropdown-menu>
-                </template>
-              </el-dropdown>
-            </div>
+            <el-dropdown trigger="click">
+              <el-button text :icon="MoreFilled" />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item @click="viewPosition(position)">
+                    <el-icon><View /></el-icon>查看详情
+                  </el-dropdown-item>
+                  <el-dropdown-item @click="editPosition(position)">
+                    <el-icon><Edit /></el-icon>编辑
+                  </el-dropdown-item>
+                  <el-dropdown-item divided @click="deletePosition(position)" style="color: #ef4444;">
+                    <el-icon style="color: #ef4444;"><Close /></el-icon>删除
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
 
           <div class="position-content">
             <p class="position-description">{{ position.description || '暂无描述' }}</p>
             
-            <div v-if="position.requirements?.length" class="position-requirements">
-              <div class="section-title">职位要求</div>
-              <ul>
-                <li v-for="req in position.requirements.slice(0, 3)" :key="req">{{ req }}</li>
-                <li v-if="position.requirements.length > 3">
-                  <span class="more-text">+{{ position.requirements.length - 3 }} 项要求</span>
-                </li>
-              </ul>
-            </div>
-
-            <div v-if="position.skills?.length" class="position-skills">
+            <div v-if="position.skills?.length > 0" class="position-skills">
               <div class="section-title">技能要求</div>
               <div class="skills-tags">
                 <el-tag
@@ -140,7 +125,6 @@
         </div>
       </div>
 
-      <!-- 分页 -->
       <div class="pagination-wrapper">
         <el-pagination
           v-model:current-page="currentPage"
@@ -203,26 +187,6 @@
           />
         </el-form-item>
 
-        <el-form-item label="职位要求" prop="requirements">
-          <div class="dynamic-list">
-            <div v-for="(requirement, index) in positionForm.requirements" :key="index" class="list-item">
-              <el-input
-                v-model="positionForm.requirements[index]"
-                placeholder="请输入职位要求"
-              />
-              <el-button
-                :icon="Close"
-                @click="removeRequirement(index)"
-                text
-                class="remove-btn"
-              />
-            </div>
-            <el-button :icon="Plus" @click="addRequirement" text>
-              添加要求
-            </el-button>
-          </div>
-        </el-form-item>
-
         <el-form-item label="技能要求" prop="skills">
           <div class="dynamic-list">
             <div v-for="(skill, index) in positionForm.skills" :key="index" class="list-item">
@@ -257,16 +221,14 @@
     <!-- 详情对话框 -->
     <el-dialog v-model="detailVisible" title="岗位详情" width="600px">
       <div v-if="selectedPosition" class="position-detail">
-        <div class="detail-section">
-          <h3>{{ selectedPosition.name }}</h3>
-          <div class="detail-meta">
-            <el-tag :type="getCategoryType(selectedPosition.category)">
-              {{ selectedPosition.category }}
-            </el-tag>
-            <el-tag :type="getLevelType(selectedPosition.level)">
-              {{ selectedPosition.level }}
-            </el-tag>
-          </div>
+        <h3>{{ selectedPosition.name }}</h3>
+        <div class="detail-meta">
+          <el-tag :type="getCategoryType(selectedPosition.category)">
+            {{ selectedPosition.category }}
+          </el-tag>
+          <el-tag :type="getLevelType(selectedPosition.level)">
+            {{ selectedPosition.level }}
+          </el-tag>
         </div>
 
         <div v-if="selectedPosition.description" class="detail-section">
@@ -274,14 +236,7 @@
           <p>{{ selectedPosition.description }}</p>
         </div>
 
-        <div v-if="selectedPosition.requirements?.length" class="detail-section">
-          <h4>职位要求</h4>
-          <ul>
-            <li v-for="req in selectedPosition.requirements" :key="req">{{ req }}</li>
-          </ul>
-        </div>
-
-        <div v-if="selectedPosition.skills?.length" class="detail-section">
+        <div v-if="selectedPosition.skills?.length > 0" class="detail-section">
           <h4>技能要求</h4>
           <div class="skills-tags">
             <el-tag
@@ -303,7 +258,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import {
-  Plus, Search, List, MoreFilled, View, Edit, Delete, Close
+  Plus, Search, List, MoreFilled, View, Edit, Close
 } from '@element-plus/icons-vue'
 import {
   getPositionsApi,
@@ -315,7 +270,8 @@ import {
   type JobPositionUpdateDTO
 } from '@/api/interview'
 
-// 响应式数据
+import PageHeader from '@/components/PageHeader.vue'
+
 const positions = ref<JobPosition[]>([])
 const categories = ref<string[]>([])
 const loading = ref(false)
@@ -325,30 +281,25 @@ const isEditing = ref(false)
 const submitting = ref(false)
 const selectedPosition = ref<JobPosition | null>(null)
 
-// 分页
 const currentPage = ref(1)
 const pageSize = ref(12)
 
-// 搜索表单
 const searchForm = reactive({
   name: '',
   category: '',
   level: ''
 })
 
-// 岗位表单
 const positionForm = reactive<JobPositionCreateDTO>({
   name: '',
   category: '',
   level: '',
   description: '',
-  requirements: [''],
   skills: ['']
 })
 
 const formRef = ref<FormInstance>()
 
-// 表单验证规则
 const formRules: FormRules = {
   name: [
     { required: true, message: '请输入岗位名称', trigger: 'blur' }
@@ -364,7 +315,6 @@ const formRules: FormRules = {
   ]
 }
 
-// 计算属性
 const filteredPositions = computed(() => {
   return positions.value.filter(position => {
     const matchName = !searchForm.name || position.name.toLowerCase().includes(searchForm.name.toLowerCase())
@@ -380,17 +330,14 @@ const paginatedPositions = computed(() => {
   return filteredPositions.value.slice(start, end)
 })
 
-// 方法
 const loadPositions = async () => {
   try {
     loading.value = true
     positions.value = await getPositionsApi()
     
-    // 提取分类
     const uniqueCategories = [...new Set(positions.value.map(p => p.category))]
     categories.value = uniqueCategories
   } catch (error) {
-    console.error('Failed to load positions:', error)
     ElMessage.error('加载岗位列表失败')
   } finally {
     loading.value = false
@@ -420,20 +367,9 @@ const resetForm = () => {
     category: '',
     level: '',
     description: '',
-    requirements: [''],
     skills: ['']
   })
   formRef.value?.clearValidate()
-}
-
-const addRequirement = () => {
-  positionForm.requirements.push('')
-}
-
-const removeRequirement = (index: number) => {
-  if (positionForm.requirements.length > 1) {
-    positionForm.requirements.splice(index, 1)
-  }
 }
 
 const addSkill = () => {
@@ -455,7 +391,6 @@ const editPosition = (position: JobPosition) => {
   isEditing.value = true
   Object.assign(positionForm, {
     ...position,
-    requirements: position.requirements?.length ? [...position.requirements] : [''],
     skills: position.skills?.length ? [...position.skills] : ['']
   })
   selectedPosition.value = position
@@ -469,10 +404,8 @@ const submitForm = async () => {
     await formRef.value.validate()
     submitting.value = true
 
-    // 过滤空值
     const formData = {
       ...positionForm,
-      requirements: positionForm.requirements.filter(req => req.trim()),
       skills: positionForm.skills.filter(skill => skill.trim())
     }
 
@@ -487,7 +420,6 @@ const submitForm = async () => {
     dialogVisible.value = false
     await loadPositions()
   } catch (error) {
-    console.error('Submit failed:', error)
     ElMessage.error(isEditing.value ? '更新岗位失败' : '创建岗位失败')
   } finally {
     submitting.value = false
@@ -511,7 +443,6 @@ const deletePosition = async (position: JobPosition) => {
     await loadPositions()
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('Delete failed:', error)
       ElMessage.error('删除岗位失败')
     }
   }
@@ -533,7 +464,6 @@ const getLevelType = (level: string) => {
   return typeMap[level] || 'info'
 }
 
-// 生命周期
 onMounted(() => {
   loadPositions()
 })
@@ -543,50 +473,19 @@ onMounted(() => {
 .positions-view {
   max-width: 100%;
   margin: 0 auto;
+  padding: 20px;
 }
 
-/* 页面头部 */
-.page-header {
-  margin-bottom: 24px;
-}
-
-.header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-}
-
-.header-left {
-  flex: 1;
-}
-
-.page-title {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1e293b;
-  margin: 0 0 8px 0;
-}
-
-.page-subtitle {
-  font-size: 16px;
-  color: #64748b;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-/* 过滤卡片 */
 .filter-card {
   margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
-/* 岗位卡片 */
 .positions-card {
   margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
 .card-header {
@@ -603,7 +502,6 @@ onMounted(() => {
   color: #374151;
 }
 
-/* 岗位网格 */
 .positions-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -647,10 +545,6 @@ onMounted(() => {
   gap: 8px;
 }
 
-.position-actions {
-  margin-left: 12px;
-}
-
 .position-content {
   color: #64748b;
 }
@@ -665,7 +559,6 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.position-requirements,
 .position-skills {
   margin-bottom: 16px;
 }
@@ -677,35 +570,18 @@ onMounted(() => {
   margin-bottom: 8px;
 }
 
-.position-requirements ul {
-  margin: 0;
-  padding-left: 16px;
-  font-size: 13px;
-}
-
-.position-requirements li {
-  margin-bottom: 4px;
-}
-
-.more-text {
-  color: #9ca3af;
-  font-style: italic;
-}
-
 .skills-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-/* 分页 */
 .pagination-wrapper {
   display: flex;
   justify-content: center;
   padding: 20px 0;
 }
 
-/* 表单相关 */
 .dynamic-list {
   width: 100%;
 }
@@ -740,23 +616,14 @@ onMounted(() => {
   gap: 12px;
 }
 
-/* 详情页面 */
-.position-detail {
-  padding: 8px;
-}
-
-.detail-section {
-  margin-bottom: 24px;
-}
-
-.detail-section h3 {
+.position-detail h3 {
   font-size: 20px;
   font-weight: 600;
   color: #1e293b;
   margin: 0 0 12px 0;
 }
 
-.detail-section h4 {
+.position-detail h4 {
   font-size: 16px;
   font-weight: 600;
   color: #374151;
@@ -769,30 +636,7 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.detail-section ul {
-  margin: 0;
-  padding-left: 16px;
-  color: #64748b;
-}
-
-.detail-section li {
-  margin-bottom: 6px;
-}
-
-/* 响应式 */
-@media (max-width: 768px) {
-  .positions-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .header-content {
-    flex-direction: column;
-    gap: 16px;
-    align-items: flex-start;
-  }
-  
-  .page-title {
-    font-size: 24px;
-  }
+.detail-section {
+  margin-bottom: 24px;
 }
 </style>

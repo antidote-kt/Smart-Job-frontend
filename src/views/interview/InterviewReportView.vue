@@ -1,805 +1,468 @@
 <template>
   <div class="interview-report">
-    <div class="report-header">
-      <div class="header-content">
-        <div class="header-left">
-          <h2>面试评估报告</h2>
-          <div class="session-info">
-            <span>{{ session?.title || `面试 #${sessionId}` }}</span>
-            <el-divider direction="vertical" />
-            <span>面试时间：{{ formatDate(session?.startTime || session?.createdAt) }}</span>
-            <el-divider direction="vertical" />
-            <span>用时：{{ formatDuration(sessionDuration) }}</span>
-          </div>
-        </div>
-        <div class="header-actions">
-          <el-button @click="exportReport">
-            <el-icon><Download /></el-icon>
-            导出报告
-          </el-button>
-          <el-button @click="shareReport">
-            <el-icon><Share /></el-icon>
-            分享
-          </el-button>
-        </div>
-      </div>
-    </div>
+    <PageHeader title="面试评估报告">
+      <template #actions>
+        <el-button @click="goBack">
+          <el-icon><ArrowLeft /></el-icon>
+          返回
+        </el-button>
+      </template>
+    </PageHeader>
 
     <div class="report-content" v-loading="isLoading">
-      <!-- Overall Score Section -->
+      <!-- 基本信息 -->
+      <el-card class="session-info-card" shadow="hover">
+        <div class="session-details">
+          <div class="detail-item">
+            <span class="label">面试名称：</span>
+            <span class="value">{{ formatSessionName(session?.title, sessionId) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">开始时间：</span>
+            <span class="value">{{ formatDate(session?.startTime) }}</span>
+          </div>
+          <div class="detail-item">
+            <span class="label">结束时间：</span>
+            <span class="value">{{ formatDate(session?.endTime) }}</span>
+          </div>
+        </div>
+      </el-card>
+
+      <!-- 总体评分 -->
       <el-row :gutter="20" class="overview-section">
         <el-col :span="8">
-          <el-card class="score-overview" shadow="hover">
-            <div class="overall-score">
-              <div class="score-circle">
-                <el-progress
-                  type="circle"
-                  :percentage="Math.round(report?.overallScore || 0)"
-                  :width="120"
-                  :stroke-width="8"
-                  :color="getScoreColor(report?.overallScore || 0)"
-                >
-                  <template #default="{ percentage }">
-                    <div class="score-text">
-                      <div class="score-number">{{ report?.overallScore?.toFixed(1) || '0.0' }}</div>
-                      <div class="score-label">总分</div>
+          <StatisticCard
+            :value="(report?.overallScore || 0).toFixed(1)"
+            label="总体得分"
+            :icon="TrendCharts"
+            icon-class="score"
+          />
+        </el-col>
+        <el-col :span="8">
+          <StatisticCard
+            :value="questionCount"
+            label="回答题数"
+            :icon="QuestionFilled"
+            icon-class="total"
+          />
+        </el-col>
+        <el-col :span="8">
+          <StatisticCard
+            :value="averageAnswerLength"
+            label="平均回答字数"
+            :icon="EditPen"
+            icon-class="completed"
+          />
+        </el-col>
+      </el-row>
+
+      <!-- 详细评分 -->
+      <el-card class="detailed-scores" shadow="hover">
+        <template #header>
+          <h3>详细评分</h3>
+        </template>
+        
+        <el-row :gutter="20">
+          <el-col :span="8">
+            <div class="score-item">
+              <div class="score-label">专业性</div>
+              <div class="score-value">
+                <ScoreDisplay :score="report?.professionalScore || 0" :precision="1" />
+              </div>
+              <el-progress 
+                :percentage="report?.professionalScore || 0" 
+                :show-text="false"
+                :stroke-width="6"
+              />
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="score-item">
+              <div class="score-label">逻辑性</div>
+              <div class="score-value">
+                <ScoreDisplay :score="report?.logicScore || 0" :precision="1" />
+              </div>
+              <el-progress 
+                :percentage="report?.logicScore || 0" 
+                :show-text="false"
+                :stroke-width="6"
+              />
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="score-item">
+              <div class="score-label">完整性</div>
+              <div class="score-value">
+                <ScoreDisplay :score="report?.completenessScore || 0" :precision="1" />
+              </div>
+              <el-progress 
+                :percentage="report?.completenessScore || 0" 
+                :show-text="false"
+                :stroke-width="6"
+              />
+            </div>
+          </el-col>
+        </el-row>
+      </el-card>
+
+      <!-- 问答详情 -->
+      <el-card class="qa-details" shadow="hover">
+        <template #header>
+          <h3>问答详情</h3>
+        </template>
+
+        <div v-if="qaRecords.length === 0" class="no-data">
+          <el-empty description="暂无问答记录" />
+        </div>
+
+        <el-collapse v-else v-model="activeCollapse">
+          <el-collapse-item
+            v-for="(record, index) in qaRecords"
+            :key="record.question.id"
+            :title="`第 ${index + 1} 题：${record.question.questionText.slice(0, 50)}...`"
+            :name="index.toString()"
+          >
+            <div class="qa-item">
+              <!-- 问题 -->
+              <div class="question-section">
+                <h4>问题</h4>
+                <p class="question-text">{{ record.question.questionText }}</p>
+              </div>
+
+              <!-- 回答 -->
+              <div class="answer-section">
+                <h4>我的回答</h4>
+                <p class="answer-text">{{ record.question.userAnswer }}</p>
+              </div>
+
+              <!-- 评价 -->
+              <div v-if="record.evaluation" class="evaluation-section">
+                <h4>AI 评价</h4>
+                <el-row :gutter="16" class="eval-scores">
+                  <el-col :span="6">
+                    <div class="eval-item">
+                      <span class="eval-label">专业性</span>
+                      <ScoreDisplay :score="record.evaluation.professionalScore" :precision="1" />
                     </div>
-                  </template>
-                </el-progress>
-              </div>
-              <div class="score-description">
-                <el-tag :type="getScoreType(report?.overallScore || 0)" size="large">
-                  {{ getScoreGrade(report?.overallScore || 0) }}
-                </el-tag>
-                <p>{{ getScoreComment(report?.overallScore || 0) }}</p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="16">
-          <el-card class="score-breakdown" shadow="hover">
-            <template #header>
-              <h3>能力维度评估</h3>
-            </template>
-            <div class="dimension-scores">
-              <div class="dimension-item">
-                <div class="dimension-header">
-                  <span class="dimension-name">专业技能</span>
-                  <span class="dimension-score">{{ (report?.professionalScore || 0).toFixed(1) }}分</span>
-                </div>
-                <el-progress
-                  :percentage="report?.professionalScore || 0"
-                  :stroke-width="12"
-                  :show-text="false"
-                  color="#67c23a"
-                />
-                <p class="dimension-desc">技术知识的掌握程度和专业能力表现</p>
-              </div>
-              <div class="dimension-item">
-                <div class="dimension-header">
-                  <span class="dimension-name">逻辑思维</span>
-                  <span class="dimension-score">{{ (report?.logicScore || 0).toFixed(1) }}分</span>
-                </div>
-                <el-progress
-                  :percentage="report?.logicScore || 0"
-                  :stroke-width="12"
-                  :show-text="false"
-                  color="#409eff"
-                />
-                <p class="dimension-desc">思路清晰度、逻辑性和表达能力</p>
-              </div>
-              <div class="dimension-item">
-                <div class="dimension-header">
-                  <span class="dimension-name">回答完整性</span>
-                  <span class="dimension-score">{{ (report?.completenessScore || 0).toFixed(1) }}分</span>
-                </div>
-                <el-progress
-                  :percentage="report?.completenessScore || 0"
-                  :stroke-width="12"
-                  :show-text="false"
-                  color="#e6a23c"
-                />
-                <p class="dimension-desc">回答的全面性和要点覆盖程度</p>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="eval-item">
+                      <span class="eval-label">逻辑性</span>
+                      <ScoreDisplay :score="record.evaluation.logicScore" :precision="1" />
+                    </div>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="eval-item">
+                      <span class="eval-label">完整性</span>
+                      <ScoreDisplay :score="record.evaluation.completenessScore" :precision="1" />
+                    </div>
+                  </el-col>
+                  <el-col :span="6">
+                    <div class="eval-item">
+                      <span class="eval-label">综合得分</span>
+                      <ScoreDisplay :score="record.evaluation.overallScore" :precision="1" />
+                    </div>
+                  </el-col>
+                </el-row>
 
-      <!-- Performance Analysis -->
-      <el-row :gutter="20" class="analysis-section">
-        <el-col :span="12">
-          <el-card class="performance-card" shadow="hover">
-            <template #header>
-              <h3><el-icon><TrendCharts /></el-icon> 表现分析</h3>
-            </template>
-            <div class="performance-content">
-              <div class="analysis-item" v-if="report?.strongPoints">
-                <h4><el-icon><Check /></el-icon> 优势表现</h4>
-                <p>{{ report.strongPoints }}</p>
-              </div>
-              <div class="analysis-item" v-if="report?.weakPoints">
-                <h4><el-icon><WarningFilled /></el-icon> 待提升领域</h4>
-                <p>{{ report.weakPoints }}</p>
-              </div>
-              <div class="analysis-item" v-if="performanceAnalysis">
-                <h4><el-icon><DataAnalysis /></el-icon> 详细分析</h4>
-                <div class="analysis-details">
-                  <p>{{ performanceAnalysis }}</p>
+                <div class="feedback-section">
+                  <h5>反馈建议</h5>
+                  <p class="feedback-text">{{ record.evaluation.aiFeedback }}</p>
                 </div>
               </div>
             </div>
-          </el-card>
-        </el-col>
-        <el-col :span="12">
-          <el-card class="suggestions-card" shadow="hover">
-            <template #header>
-              <h3><el-icon><QuestionFilled /></el-icon> 改进建议</h3>
-            </template>
-            <div class="suggestions-content">
-              <div class="suggestion-item" v-if="report?.improvementSuggestions">
-                <h4>总体建议</h4>
-                <p>{{ report.improvementSuggestions }}</p>
-              </div>
-              <div class="suggestion-item" v-if="skillAssessment">
-                <h4>技能提升方向</h4>
-                <div class="skill-content">
-                  <p>{{ skillAssessment }}</p>
-                </div>
-              </div>
-              <div class="suggestion-item">
-                <h4>推荐学习资源</h4>
-                <ul class="resource-list">
-                  <li>根据您的表现，建议重点学习相关专业知识</li>
-                  <li>练习逻辑思维和表达能力</li>
-                  <li>多做模拟面试来提升综合能力</li>
-                </ul>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+          </el-collapse-item>
+        </el-collapse>
+      </el-card>
 
-      <!-- Radar Chart -->
-      <el-row class="chart-section">
-        <el-col :span="24">
-          <el-card class="chart-card" shadow="hover">
-            <template #header>
-              <h3><el-icon><PieChart /></el-icon> 能力雷达图</h3>
-            </template>
-            <div class="chart-container">
-              <div class="radar-chart">
-                <svg width="300" height="300" viewBox="0 0 300 300" class="radar-svg">
-                  <!-- Background grid -->
-                  <g class="grid">
-                    <circle cx="150" cy="150" r="120" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-                    <circle cx="150" cy="150" r="90" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-                    <circle cx="150" cy="150" r="60" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-                    <circle cx="150" cy="150" r="30" fill="none" stroke="#e0e0e0" stroke-width="1"/>
-                    <line x1="150" y1="30" x2="150" y2="270" stroke="#e0e0e0" stroke-width="1"/>
-                    <line x1="30" y1="150" x2="270" y2="150" stroke="#e0e0e0" stroke-width="1"/>
-                    <line x1="244" y1="66" x2="56" y2="234" stroke="#e0e0e0" stroke-width="1"/>
-                    <line x1="244" y1="234" x2="56" y2="66" stroke="#e0e0e0" stroke-width="1"/>
-                  </g>
-                  
-                  <!-- Data polygon -->
-                  <polygon 
-                    :points="getRadarPoints()"
-                    fill="rgba(64, 158, 255, 0.3)" 
-                    stroke="#409eff" 
-                    stroke-width="2"
-                  />
-                  
-                  <!-- Data points -->
-                  <circle 
-                    v-for="(point, index) in getRadarPointsArray()" 
-                    :key="index"
-                    :cx="point.x" 
-                    :cy="point.y" 
-                    r="4" 
-                    :fill="getPointColor(index)"
-                  />
-                  
-                  <!-- Labels -->
-                  <text x="150" y="25" text-anchor="middle" class="radar-label">专业技能</text>
-                  <text x="260" y="105" text-anchor="middle" class="radar-label">逻辑思维</text>
-                  <text x="260" y="205" text-anchor="middle" class="radar-label">完整性</text>
-                  <text x="150" y="285" text-anchor="middle" class="radar-label">综合能力</text>
-                  <text x="40" y="205" text-anchor="middle" class="radar-label">表达能力</text>
-                  <text x="40" y="105" text-anchor="middle" class="radar-label">响应速度</text>
-                </svg>
-              </div>
-              
-              <div class="chart-legend">
-                <div class="legend-item">
-                  <div class="legend-color professional"></div>
-                  <span>专业技能: {{ (report?.professionalScore || 0).toFixed(1) }}分</span>
-                </div>
-                <div class="legend-item">
-                  <div class="legend-color logic"></div>
-                  <span>逻辑思维: {{ (report?.logicScore || 0).toFixed(1) }}分</span>
-                </div>
-                <div class="legend-item">
-                  <div class="legend-color completeness"></div>
-                  <span>完整性: {{ (report?.completenessScore || 0).toFixed(1) }}分</span>
-                </div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
-
-      <!-- Session Statistics -->
-      <el-row :gutter="20" class="statistics-section">
-        <el-col :span="8">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <el-icon size="32"><Clock /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-number">{{ formatDuration(sessionDuration) }}</div>
-                <div class="stat-label">面试时长</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="8">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <el-icon size="32"><Document /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-number">{{ session?.answeredQuestions || 0 }}</div>
-                <div class="stat-label">回答题数</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-        <el-col :span="8">
-          <el-card class="stat-card" shadow="hover">
-            <div class="stat-content">
-              <div class="stat-icon">
-                <el-icon size="32"><Timer /></el-icon>
-              </div>
-              <div class="stat-info">
-                <div class="stat-number">{{ averageTime }}s</div>
-                <div class="stat-label">平均答题时间</div>
-              </div>
-            </div>
-          </el-card>
-        </el-col>
-      </el-row>
+      <!-- 总体反馈 -->
+      <el-card v-if="report?.summary" class="summary-card" shadow="hover">
+        <template #header>
+          <h3>总体评价</h3>
+        </template>
+        <div class="summary-content">
+          <p>{{ report.summary }}</p>
+        </div>
+      </el-card>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { useInterviewStore } from '@/stores/modules/interview'
-import { QuestionFilled, ArrowLeft } from '@element-plus/icons-vue'
+import { 
+  ArrowLeft, TrendCharts, 
+  QuestionFilled, EditPen 
+} from '@element-plus/icons-vue'
 
-const route = useRoute()
+import PageHeader from '@/components/PageHeader.vue'
+import StatusTag from '@/components/StatusTag.vue'
+import ScoreDisplay from '@/components/ScoreDisplay.vue'
+import StatisticCard from '@/components/StatisticCard.vue'
+
+import { useInterviewStore } from '@/stores/modules/interview'
+import { formatDate, formatSessionName } from '@/utils/formatters'
+import type { InterviewVO, InterviewQuestionVO, AnswerEvaluation } from '@/api/interview'
+import { getInterviewQuestionsApi, getInterviewEvaluationsApi, getInterviewDetailApi } from '@/api/interview'
+
 const router = useRouter()
+const route = useRoute()
 const interviewStore = useInterviewStore()
 
-const sessionId = parseInt(route.params.id as string)
+const sessionId = computed(() => Number(route.params.id))
+
 const isLoading = ref(false)
+const session = ref<InterviewVO | null>(null)
+const report = ref<any>(null)
+const qaRecords = ref<Array<{
+  question: InterviewQuestionVO
+  evaluation?: AnswerEvaluation
+}>>([])
+const activeCollapse = ref<string[]>([])
 
-const session = computed(() => interviewStore.currentSession)
-const report = computed(() => interviewStore.currentSession?.report)
+const questionCount = computed(() => qaRecords.value.length)
 
-const sessionDuration = computed(() => {
-  if (!session.value?.startTime) {
-    return 0
-  }
+const averageAnswerLength = computed(() => {
+  const answers = qaRecords.value
+    .map(r => r.question.userAnswer?.length || 0)
+    .filter(length => length > 0)
   
-  try {
-    const start = new Date(session.value.startTime)
-    if (isNaN(start.getTime())) {
-      return 0
-    }
-    
-    // 如果面试已完成且有结束时间，使用结束时间
-    if (session.value.status === 2 && session.value.endTime) {
-      const end = new Date(session.value.endTime)
-      if (!isNaN(end.getTime())) {
-        return Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000))
-      }
-    }
-    
-    // 如果没有结束时间，使用当前时间计算（适用于正在进行的面试）
-    const now = new Date()
-    return Math.max(0, Math.floor((now.getTime() - start.getTime()) / 1000))
-  } catch (error) {
-    console.error('计算面试时长失败:', error)
-    return 0
-  }
-})
-
-const averageTime = computed(() => {
-  if (!sessionDuration.value || !session.value?.answeredQuestions) return 0
-  return Math.round(sessionDuration.value / session.value.answeredQuestions)
-})
-
-const performanceAnalysis = computed(() => {
-  return report.value?.performanceAnalysis || '暂无分析内容'
-})
-
-const skillAssessment = computed(() => {
-  return report.value?.skillAssessment || '暂无评估内容'
+  if (answers.length === 0) return 0
+  return Math.round(answers.reduce((sum, length) => sum + length, 0) / answers.length)
 })
 
 onMounted(async () => {
-  await loadReport()
+  await loadReportData()
 })
 
-const loadReport = async () => {
+const loadReportData = async () => {
   try {
     isLoading.value = true
-    await interviewStore.loadSession(sessionId)
     
-    // 报告已经包含在会话数据中，不需要单独获取
-    if (!report.value) {
-      ElMessage.error('面试报告尚未生成')
+    // 直接调用API加载面试基本信息，确保获取最新数据
+    session.value = await getInterviewDetailApi(sessionId.value)
+    
+    console.log('面试数据:', session.value) // 调试日志
+    console.log('面试状态:', session.value?.status)
+    console.log('开始时间:', session.value?.startTime)
+    console.log('结束时间:', session.value?.endTime)
+    
+    // 加载问答记录和评价
+    const [questions, evaluations] = await Promise.all([
+      getInterviewQuestionsApi(sessionId.value),
+      getInterviewEvaluationsApi(sessionId.value)
+    ])
+    
+    // 组合问答和评价数据
+    qaRecords.value = questions
+      .filter(q => q.userAnswer)
+      .map(question => {
+        const evaluation = evaluations.find(e => e.qaRecordId === question.id)
+        return { question, evaluation }
+      })
+    
+    // 获取面试报告
+    if (session.value?.status === 2) { // 已完成的面试
+      try {
+        report.value = await interviewStore.loadReport(sessionId.value)
+      } catch (error) {
+        // 如果没有报告，则根据评价计算总体报告
+        if (evaluations.length > 0) {
+          report.value = {
+            overallScore: evaluations.reduce((sum, e) => sum + e.overallScore, 0) / evaluations.length,
+            professionalScore: evaluations.reduce((sum, e) => sum + e.professionalScore, 0) / evaluations.length,
+            logicScore: evaluations.reduce((sum, e) => sum + e.logicScore, 0) / evaluations.length,
+            completenessScore: evaluations.reduce((sum, e) => sum + e.completenessScore, 0) / evaluations.length
+          }
+        }
+      }
     }
+    
   } catch (error) {
-    ElMessage.error('加载面试报告失败')
-    router.push('/dashboard')
+    console.error('加载报告数据失败:', error)
+    ElMessage.error('加载报告数据失败')
   } finally {
     isLoading.value = false
   }
 }
 
-const getScoreColor = (score: number) => {
-  if (score >= 80) return '#67c23a'
-  if (score >= 60) return '#e6a23c'
-  return '#f56c6c'
-}
-
-const getScoreType = (score: number) => {
-  if (score >= 80) return 'success'
-  if (score >= 60) return 'warning'
-  return 'danger'
-}
-
-const getScoreGrade = (score: number) => {
-  if (score >= 90) return '优秀'
-  if (score >= 80) return '良好'
-  if (score >= 70) return '中等'
-  if (score >= 60) return '及格'
-  return '待提升'
-}
-
-const getScoreComment = (score: number) => {
-  if (score >= 90) return '表现非常出色，展现了扎实的专业基础'
-  if (score >= 80) return '整体表现良好，有较强的专业能力'
-  if (score >= 70) return '表现中等，基础知识掌握尚可'
-  if (score >= 60) return '基本达标，但还有提升空间'
-  return '需要进一步加强学习和练习'
-}
-
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '未知时间'
-  
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) {
-      return '未知时间'
-    }
-    return date.toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
-  } catch (error) {
-    return '未知时间'
-  }
-}
-
-const formatDuration = (seconds: number) => {
-  const hours = Math.floor(seconds / 3600)
-  const minutes = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`
-}
-
-const exportReport = () => {
-  ElMessage.info('导出功能开发中...')
-}
-
-const shareReport = () => {
-  ElMessage.info('分享功能开发中...')
-}
-
-// Radar chart functions
-const getRadarPoints = () => {
-  const scores = [
-    report.value?.professionalScore || 0,  // 专业技能
-    report.value?.logicScore || 0,         // 逻辑思维
-    report.value?.completenessScore || 0,  // 完整性
-    (report.value?.overallScore || 0),     // 综合能力
-    (report.value?.logicScore || 0),       // 表达能力 (使用逻辑分数)
-    ((report.value?.professionalScore || 0) + (report.value?.logicScore || 0)) / 2  // 响应速度
-  ]
-  
-  const points = []
-  const centerX = 150
-  const centerY = 150
-  const maxRadius = 120
-  
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * 60 - 90) * Math.PI / 180  // Start from top, 60 degrees apart
-    const radius = (scores[i] / 100) * maxRadius
-    const x = centerX + radius * Math.cos(angle)
-    const y = centerY + radius * Math.sin(angle)
-    points.push(`${x},${y}`)
-  }
-  
-  return points.join(' ')
-}
-
-const getRadarPointsArray = () => {
-  const scores = [
-    report.value?.professionalScore || 0,
-    report.value?.logicScore || 0,
-    report.value?.completenessScore || 0,
-    (report.value?.overallScore || 0),
-    (report.value?.logicScore || 0),
-    ((report.value?.professionalScore || 0) + (report.value?.logicScore || 0)) / 2
-  ]
-  
-  const points = []
-  const centerX = 150
-  const centerY = 150
-  const maxRadius = 120
-  
-  for (let i = 0; i < 6; i++) {
-    const angle = (i * 60 - 90) * Math.PI / 180
-    const radius = (scores[i] / 100) * maxRadius
-    const x = centerX + radius * Math.cos(angle)
-    const y = centerY + radius * Math.sin(angle)
-    points.push({ x, y })
-  }
-  
-  return points
-}
-
-const getPointColor = (index: number) => {
-  const colors = ['#67c23a', '#409eff', '#e6a23c', '#f56c6c', '#909399', '#e6a23c']
-  return colors[index] || '#409eff'
+const goBack = () => {
+  router.back()
 }
 </script>
 
 <style scoped>
 .interview-report {
-  min-height: 100vh;
-  background-color: #f0f2f5;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
 }
 
-.report-header {
-  background: white;
-  padding: 24px;
-  border-bottom: 1px solid #e4e7ed;
+.session-info-card {
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
-.header-content {
+.session-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.detail-item {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  max-width: 1200px;
-  margin: 0 auto;
+  gap: 8px;
 }
 
-.header-left h2 {
-  margin: 0 0 8px 0;
-  color: #303133;
+.label {
+  font-weight: 500;
+  color: #64748b;
+}
+
+.value {
+  color: #374151;
   font-weight: 600;
-}
-
-.session-info {
-  color: #909399;
-  font-size: 14px;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.report-content {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px;
 }
 
 .overview-section {
   margin-bottom: 24px;
 }
 
-.score-overview {
-  height: 100%;
+.detailed-scores {
+  margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.detailed-scores h3 {
+  margin: 0;
+  color: #374151;
+  font-weight: 600;
+}
+
+.score-item {
   text-align: center;
-}
-
-.overall-score {
-  padding: 20px;
-}
-
-.score-circle {
-  margin-bottom: 20px;
-}
-
-.score-text {
-  text-align: center;
-}
-
-.score-number {
-  font-size: 32px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1;
+  padding: 16px;
 }
 
 .score-label {
   font-size: 14px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-.score-description p {
-  margin: 12px 0 0 0;
-  color: #606266;
-  font-size: 14px;
-  line-height: 1.5;
-}
-
-.score-breakdown {
-  height: 100%;
-}
-
-.dimension-scores {
-  padding: 20px 0;
-}
-
-.dimension-item {
-  margin-bottom: 32px;
-}
-
-.dimension-item:last-child {
-  margin-bottom: 0;
-}
-
-.dimension-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.dimension-name {
-  font-weight: 600;
-  color: #303133;
-}
-
-.dimension-score {
-  font-weight: 600;
-  color: #409eff;
-}
-
-.dimension-desc {
-  margin: 8px 0 0 0;
-  font-size: 14px;
-  color: #909399;
-  line-height: 1.4;
-}
-
-.analysis-section {
-  margin-bottom: 24px;
-}
-
-.performance-card,
-.suggestions-card {
-  height: 100%;
-}
-
-.performance-content,
-.suggestions-content {
-  padding: 20px 0;
-}
-
-.analysis-item,
-.suggestion-item {
-  margin-bottom: 24px;
-}
-
-.analysis-item:last-child,
-.suggestion-item:last-child {
-  margin-bottom: 0;
-}
-
-.analysis-item h4,
-.suggestion-item h4 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0 0 12px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #606266;
-}
-
-.analysis-item p,
-.suggestion-item p {
-  margin: 0;
-  line-height: 1.6;
-  color: #303133;
-}
-
-.analysis-details p {
+  color: #64748b;
   margin-bottom: 8px;
 }
 
-.skill-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
+.score-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #374151;
+  margin-bottom: 12px;
 }
 
-.skill-tag {
-  margin: 0;
-}
-
-.resource-list {
-  margin: 8px 0 0 0;
-  padding-left: 20px;
-}
-
-.resource-list li {
-  margin-bottom: 4px;
-  line-height: 1.5;
-  color: #606266;
-}
-
-.chart-section {
+.qa-details {
   margin-bottom: 24px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
-.chart-container {
-  padding: 40px 20px;
+.qa-details h3 {
+  margin: 0;
+  color: #374151;
+  font-weight: 600;
+}
+
+.no-data {
+  padding: 40px;
   text-align: center;
 }
 
-.radar-chart {
-  display: inline-block;
+.qa-item {
+  padding: 16px 0;
+}
+
+.question-section,
+.answer-section,
+.evaluation-section {
   margin-bottom: 20px;
 }
 
-.radar-svg {
-  max-width: 100%;
-  height: auto;
-}
-
-.radar-label {
-  font-size: 12px;
-  fill: #606266;
-  font-weight: 500;
-}
-
-.chart-placeholder {
-  text-align: center;
-  color: #909399;
-}
-
-.chart-placeholder p {
-  margin: 16px 0 24px 0;
-  font-size: 16px;
-}
-
-.chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 24px;
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-}
-
-.legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-}
-
-.legend-color.professional {
-  background: #67c23a;
-}
-
-.legend-color.logic {
-  background: #409eff;
-}
-
-.legend-color.completeness {
-  background: #e6a23c;
-}
-
-.statistics-section {
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  height: 120px;
-  display: flex;
-  align-items: center;
-}
-
-.stat-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  width: 100%;
-}
-
-.stat-icon {
-  color: #409eff;
-  flex-shrink: 0;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-number {
-  font-size: 24px;
-  font-weight: 700;
-  color: #303133;
-  line-height: 1;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #909399;
-  margin-top: 4px;
-}
-
-:deep(.el-card__header) {
-  border-bottom: 1px solid #f0f0f0;
-  padding: 20px 24px;
-}
-
-:deep(.el-card__header h3) {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 16px;
+.question-section h4,
+.answer-section h4,
+.evaluation-section h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
   font-weight: 600;
-  color: #303133;
+  font-size: 16px;
 }
 
-:deep(.el-card__body) {
-  padding: 24px;
+.question-text,
+.answer-text {
+  margin: 0;
+  line-height: 1.6;
+  color: #374151;
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid #409eff;
 }
 
-:deep(.el-progress-bar__outer) {
+.answer-text {
+  border-left-color: #67c23a;
+}
+
+.eval-scores {
+  margin-bottom: 16px;
+}
+
+.eval-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
   border-radius: 6px;
 }
 
-:deep(.el-progress-bar__inner) {
-  border-radius: 6px;
+.eval-label {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.feedback-section h5 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.feedback-text {
+  margin: 0;
+  line-height: 1.6;
+  color: #374151;
+  background: #fff7ed;
+  padding: 16px;
+  border-radius: 8px;
+  border-left: 4px solid #f59e0b;
+}
+
+.summary-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.summary-card h3 {
+  margin: 0;
+  color: #374151;
+  font-weight: 600;
+}
+
+.summary-content p {
+  margin: 0;
+  line-height: 1.6;
+  color: #374151;
+  font-size: 16px;
 }
 </style>

@@ -99,9 +99,15 @@ export const useInterviewStore = defineStore('interview', () => {
 
   const loadSessions = async () => {
     try {
+      console.log('🔄 Loading user interview sessions...')
       sessions.value = await getUserInterviewsApi()
+      console.log('✅ Successfully loaded', sessions.value.length, 'sessions')
     } catch (error) {
-      console.error('Failed to load sessions:', error)
+      console.error('❌ Failed to load sessions:', error)
+      // 检查是否是网络连接问题
+      if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+        throw new Error('网络连接失败，请检查网络连接或后端服务是否正常运行')
+      }
       throw error
     }
   }

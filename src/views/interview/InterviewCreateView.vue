@@ -1,13 +1,8 @@
 <template>
   <div class="interview-create">
-    <el-card class="create-card" shadow="hover">
-      <template #header>
-        <div class="card-header">
-          <h3>创建新面试</h3>
-          <p>选择目标岗位，开始您的模拟面试之旅</p>
-        </div>
-      </template>
+    <PageHeader title="创建新面试" description="选择目标岗位，开始您的模拟面试之旅" />
 
+    <el-card class="create-card" shadow="hover">
       <el-form
         ref="createFormRef"
         :model="createForm"
@@ -71,30 +66,38 @@
           </el-select>
         </el-form-item>
 
-        <el-form-item label="岗位级别" v-if="selectedPosition">
-          <el-tag :type="getLevelType(selectedPosition.level)" size="large">
-            {{ selectedPosition.level }}
-          </el-tag>
-        </el-form-item>
+        <!-- 岗位信息预览 -->
+        <div v-if="selectedPosition" class="position-preview">
+          <el-card class="preview-card" shadow="never">
+            <template #header>
+              <div class="preview-header">
+                <span>{{ selectedPosition.name }}</span>
+                <el-tag :type="getLevelType(selectedPosition.level)" size="large">
+                  {{ selectedPosition.level }}
+                </el-tag>
+              </div>
+            </template>
 
-        <el-form-item label="岗位描述" v-if="selectedPosition?.description">
-          <el-card class="description-card">
-            <p>{{ selectedPosition.description }}</p>
+            <div v-if="selectedPosition.description" class="position-description">
+              <h4>岗位描述</h4>
+              <p>{{ selectedPosition.description }}</p>
+            </div>
+
+            <div v-if="selectedPosition.skills?.length > 0" class="position-skills">
+              <h4>技能要求</h4>
+              <div class="skills-tags">
+                <el-tag
+                  v-for="skill in selectedPosition.skills"
+                  :key="skill"
+                  type="info"
+                  effect="plain"
+                >
+                  {{ skill }}
+                </el-tag>
+              </div>
+            </div>
           </el-card>
-        </el-form-item>
-
-        <el-form-item label="技能要求" v-if="selectedPosition?.skills">
-          <div class="skills-list">
-            <el-tag
-              v-for="skill in getSkillsList(selectedPosition.skills)"
-              :key="skill"
-              class="skill-tag"
-              type="info"
-            >
-              {{ skill }}
-            </el-tag>
-          </div>
-        </el-form-item>
+        </div>
 
         <el-form-item>
           <div class="action-buttons">
@@ -111,7 +114,7 @@
       </el-form>
     </el-card>
 
-    <!-- Quick Start Section -->
+    <!-- 快速开始选项 -->
     <el-card class="quick-start-card" shadow="hover" v-if="!createForm.category">
       <template #header>
         <h4>快速开始</h4>
@@ -143,8 +146,11 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { Monitor, Brush, TrendCharts, Promotion } from '@element-plus/icons-vue'
 import { useInterviewStore } from '@/stores/modules/interview'
 import type { JobPosition } from '@/api/interview'
+
+import PageHeader from '@/components/PageHeader.vue'
 
 const router = useRouter()
 const interviewStore = useInterviewStore()
@@ -185,25 +191,25 @@ const quickOptions = [
     category: '技术开发',
     title: '技术开发岗位',
     description: '前端、后端、全栈开发等技术岗位面试',
-    icon: 'Monitor'
+    icon: Monitor
   },
   {
     category: '产品设计',
     title: '产品设计岗位',
     description: 'UI/UX设计师、产品经理等设计岗位面试',
-    icon: 'Brush'
+    icon: Brush
   },
   {
     category: '数据分析',
     title: '数据分析岗位',
     description: '数据分析师、算法工程师等数据岗位面试',
-    icon: 'TrendCharts'
+    icon: TrendCharts
   },
   {
     category: '市场运营',
     title: '市场运营岗位',
     description: '市场营销、运营专员等运营岗位面试',
-    icon: 'Promotion'
+    icon: Promotion
   }
 ]
 
@@ -224,7 +230,6 @@ const onCategoryChange = () => {
 }
 
 const onPositionChange = () => {
-  // Auto-generate session name if not provided
   if (!createForm.sessionName && selectedPosition.value) {
     createForm.sessionName = `${selectedPosition.value.name}面试 - ${new Date().toLocaleDateString()}`
   }
@@ -235,24 +240,12 @@ const selectQuickOption = (option: any) => {
 }
 
 const getLevelType = (level: string) => {
-  switch (level) {
-    case '初级': return 'success'
-    case '中级': return 'warning'
-    case '高级': return 'danger'
-    default: return 'info'
+  const typeMap: Record<string, string> = {
+    '初级': 'success',
+    '中级': 'warning',
+    '高级': 'danger'
   }
-}
-
-const getSkillsList = (skills: any) => {
-  if (typeof skills === 'string') {
-    try {
-      const parsed = JSON.parse(skills)
-      return Array.isArray(parsed) ? parsed : [skills]
-    } catch {
-      return [skills]
-    }
-  }
-  return Array.isArray(skills) ? skills : []
+  return typeMap[level] || 'info'
 }
 
 const handleCreateInterview = async () => {
@@ -271,8 +264,6 @@ const handleCreateInterview = async () => {
     ElMessage.success('面试创建成功！')
     router.push(`/interview/${session.id}`)
   } catch (error: any) {
-    console.error('创建面试失败:', error)
-    // 如果拦截器没有处理错误消息，这里处理
     if (!error.response?.data?.message) {
       ElMessage.error('创建面试失败，请稍后重试')
     }
@@ -291,22 +282,8 @@ const handleCreateInterview = async () => {
 
 .create-card {
   margin-bottom: 20px;
-}
-
-.card-header {
-  text-align: center;
-}
-
-.card-header h3 {
-  margin: 0 0 8px 0;
-  color: #303133;
-  font-weight: 600;
-}
-
-.card-header p {
-  margin: 0;
-  color: #909399;
-  font-size: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
 }
 
 .position-option {
@@ -320,25 +297,46 @@ const handleCreateInterview = async () => {
   flex: 1;
 }
 
-.description-card {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
+.position-preview {
+  margin: 24px 0;
 }
 
-.description-card p {
+.preview-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  color: #374151;
+}
+
+.position-description,
+.position-skills {
+  margin-bottom: 16px;
+}
+
+.position-description h4,
+.position-skills h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.position-description p {
   margin: 0;
-  color: #666;
+  color: #374151;
   line-height: 1.6;
 }
 
-.skills-list {
+.skills-tags {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.skill-tag {
-  margin: 0;
 }
 
 .action-buttons {
@@ -350,6 +348,14 @@ const handleCreateInterview = async () => {
 
 .quick-start-card {
   margin-top: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.quick-start-card h4 {
+  margin: 0;
+  color: #374151;
+  font-weight: 600;
 }
 
 .quick-options {
@@ -391,14 +397,5 @@ const handleCreateInterview = async () => {
   color: #909399;
   font-size: 14px;
   line-height: 1.4;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  color: #606266;
-}
-
-:deep(.el-card__body) {
-  padding: 30px;
 }
 </style>
