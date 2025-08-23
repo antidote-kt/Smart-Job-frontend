@@ -1,10 +1,11 @@
 <template>
+  <!-- 个人资料管理页面 -->
   <div class="profile-view">
     <PageHeader title="个人设置" description="管理您的账户信息" />
 
     <el-row :gutter="20">
       <el-col :span="24">
-        <!-- Profile Info -->
+        <!-- 个人信息表单卡片 -->
         <el-card class="profile-card" shadow="hover">
           <template #header>
             <div class="card-header">
@@ -136,36 +137,65 @@
 </template>
 
 <script setup lang="ts">
+// Vue 核心功能导入
 import { ref, reactive, onMounted } from 'vue'
+// Element Plus 组件和消息提示
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+// Element Plus 图标
 import { User, Lock } from '@element-plus/icons-vue'
+// 状态管理
 import { useAuthStore } from '@/stores/modules/auth'
 
+// 自定义组件导入
 import PageHeader from '@/components/PageHeader.vue'
 
+// ========== 状态管理实例 ==========
+/** 身份验证状态管理 */
 const authStore = useAuthStore()
 
+// ========== 表单引用 ==========
+/** 个人信息表单实例引用 */
 const profileFormRef = ref<FormInstance>()
+/** 密码修改表单实例引用 */
 const passwordFormRef = ref<FormInstance>()
 
+// ========== 响应式数据定义 ==========
+
+// UI 状态控制
+/** 是否处于编辑模式 */
 const isEditing = ref(false)
+/** 是否正在保存个人信息 */
 const isSaving = ref(false)
+/** 是否正在修改密码 */
 const isChangingPassword = ref(false)
 
+// 表单数据
+/** 个人信息表单数据 */
 const profileForm = reactive({
+  /** 用户名（只读） */
   username: '',
+  /** 邮箱地址 */
   email: '',
+  /** 昵称 */
   nickname: ''
 })
 
+/** 原始表单数据（用于取消编辑时恢复） */
 const originalForm = reactive({ ...profileForm })
 
+/** 密码修改表单数据 */
 const passwordForm = reactive({
+  /** 当前密码 */
   currentPassword: '',
+  /** 新密码 */
   newPassword: '',
+  /** 确认新密码 */
   confirmPassword: ''
 })
 
+// ========== 表单验证规则 ==========
+
+/** 个人信息表单验证规则 */
 const profileRules: FormRules = {
   email: [
     { required: true, message: '请输入邮箱地址', trigger: 'blur' },
@@ -176,6 +206,7 @@ const profileRules: FormRules = {
   ]
 }
 
+/** 密码修改表单验证规则 */
 const passwordRules: FormRules = {
   currentPassword: [
     { required: true, message: '请输入当前密码', trigger: 'blur' }
@@ -199,10 +230,17 @@ const passwordRules: FormRules = {
   ]
 }
 
+// ========== 生命周期钩子 ==========
 onMounted(async () => {
   await loadUserData()
 })
 
+// ========== 数据加载方法 ==========
+
+/**
+ * 加载用户数据
+ * 从状态管理中获取用户信息并填充到表单
+ */
 const loadUserData = async () => {
   try {
     if (authStore.user) {
@@ -210,6 +248,7 @@ const loadUserData = async () => {
       profileForm.email = authStore.user.email
       profileForm.nickname = authStore.user.nickname || ''
       
+      // 保存原始数据用于取消编辑时恢复
       Object.assign(originalForm, profileForm)
     }
   } catch (error) {
@@ -217,15 +256,29 @@ const loadUserData = async () => {
   }
 }
 
+// ========== 编辑操作方法 ==========
+
+/**
+ * 开始编辑个人信息
+ * 进入编辑模式
+ */
 const startEdit = () => {
   isEditing.value = true
 }
 
+/**
+ * 取消编辑操作
+ * 恢复原始数据并退出编辑模式
+ */
 const cancelEdit = () => {
   Object.assign(profileForm, originalForm)
   isEditing.value = false
 }
 
+/**
+ * 保存个人信息
+ * 验证表单并调用API更新用户信息
+ */
 const saveProfile = async () => {
   if (!profileFormRef.value) return
 
@@ -233,11 +286,13 @@ const saveProfile = async () => {
     await profileFormRef.value.validate()
     isSaving.value = true
 
+    // 调用状态管理中的更新方法
     await authStore.updateProfile({
       email: profileForm.email,
       nickname: profileForm.nickname
     })
 
+    // 保存成功后更新原始数据并退出编辑模式
     Object.assign(originalForm, profileForm)
     isEditing.value = false
     ElMessage.success('个人信息保存成功')
@@ -248,6 +303,10 @@ const saveProfile = async () => {
   }
 }
 
+/**
+ * 修改密码
+ * 验证表单并调用API修改用户密码
+ */
 const changePassword = async () => {
   if (!passwordFormRef.value) return
 
@@ -255,8 +314,10 @@ const changePassword = async () => {
     await passwordFormRef.value.validate()
     isChangingPassword.value = true
 
+    // 调用状态管理中的修改密码方法
     await authStore.changePassword(passwordForm.currentPassword, passwordForm.newPassword)
 
+    // 修改成功后清空表单
     passwordForm.currentPassword = ''
     passwordForm.newPassword = ''
     passwordForm.confirmPassword = ''

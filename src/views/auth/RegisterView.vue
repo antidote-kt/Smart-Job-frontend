@@ -1,5 +1,7 @@
 <template>
+  <!-- 用户注册页面 -->
   <div class="register-container">
+    <!-- 注册表单卡片 -->
     <el-card class="register-card">
       <template #header>
         <div class="card-header">
@@ -87,25 +89,38 @@
 </template>
 
 <script setup lang="ts">
+// Vue 3 组合式 API 导入
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
+
+// Element Plus 组件和类型
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+
+// 用户认证状态管理
 import { useAuthStore } from '@/stores/modules/auth'
 
+// 路由和状态管理实例
 const router = useRouter()
 const authStore = useAuthStore()
 
+// 表单引用
 const registerFormRef = ref<FormInstance>()
+
+// 注册加载状态
 const isLoading = ref(false)
 
+// 注册表单数据
 const registerForm = reactive({
-  username: '',
-  email: '',
-  nickname: '',
-  password: '',
-  confirmPassword: ''
+  username: '',        // 用户名
+  email: '',          // 邮箱地址
+  nickname: '',       // 昵称（可选）
+  password: '',       // 密码
+  confirmPassword: '' // 确认密码
 })
 
+/**
+ * 自定义验证器：验证两次密码输入是否一致
+ */
 const validateConfirmPassword = (rule: any, value: string, callback: any) => {
   if (value !== registerForm.password) {
     callback(new Error('两次输入的密码不一致'))
@@ -114,6 +129,7 @@ const validateConfirmPassword = (rule: any, value: string, callback: any) => {
   }
 }
 
+// 表单验证规则配置
 const registerRules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -137,13 +153,21 @@ const registerRules: FormRules = {
   ]
 }
 
+/**
+ * 处理用户注册逻辑
+ * 1. 验证表单数据
+ * 2. 调用注册接口
+ * 3. 成功后跳转到登录页面
+ */
 const handleRegister = async () => {
   if (!registerFormRef.value) return
 
   try {
+    // 验证表单数据
     await registerFormRef.value.validate()
     isLoading.value = true
 
+    // 调用注册接口
     await authStore.register({
       username: registerForm.username,
       email: registerForm.email,

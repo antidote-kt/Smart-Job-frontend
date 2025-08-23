@@ -39,8 +39,6 @@ const tagType = computed(() => {
     case '2': return 'success'    // 绿色：已完成
     case 'IN_PROGRESS':
     case '1': return 'warning'    // 橙色：进行中
-    case 'CANCELLED':
-    case '3': return 'danger'     // 红色：已取消
     case 'CREATED':
     case '0': return 'info'       // 蓝色：已创建
     default: return 'info'        // 蓝色：未知状态
@@ -57,8 +55,6 @@ const tagText = computed(() => {
     case '2': return '已完成'
     case 'IN_PROGRESS':
     case '1': return '进行中'
-    case 'CANCELLED':
-    case '3': return '已取消'
     case 'CREATED':
     case '0': return '已创建'
     default: return '未知'

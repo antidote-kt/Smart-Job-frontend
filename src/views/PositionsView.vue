@@ -1,4 +1,5 @@
 <template>
+  <!-- 岗位管理页面 - 管理面试岗位信息 -->
   <div class="positions-view">
     <PageHeader title="岗位管理" description="管理面试岗位信息">
       <template #actions>
@@ -8,7 +9,7 @@
       </template>
     </PageHeader>
 
-    <!-- 搜索过滤 -->
+    <!-- 搜索和过滤器卡片 -->
     <el-card class="filter-card" shadow="never">
       <el-row :gutter="20">
         <el-col :span="6">
@@ -255,11 +256,15 @@
 </template>
 
 <script setup lang="ts">
+// Vue 核心功能导入
 import { ref, reactive, computed, onMounted } from 'vue'
+// Element Plus 组件和消息提示
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+// Element Plus 图标
 import {
   Plus, Search, List, MoreFilled, View, Edit, Close
 } from '@element-plus/icons-vue'
+// API 接口和类型定义
 import {
   getPositionsApi,
   createPositionApi,
@@ -270,36 +275,68 @@ import {
   type JobPositionUpdateDTO
 } from '@/api/interview'
 
+// 自定义组件导入
 import PageHeader from '@/components/PageHeader.vue'
 
+// ========== 响应式数据定义 ==========
+
+// 基础数据
+/** 职位列表数据 */
 const positions = ref<JobPosition[]>([])
+/** 职位分类列表（用于筛选） */
 const categories = ref<string[]>([])
+/** 是否正在加载数据 */
 const loading = ref(false)
+
+// 弹窗状态控制
+/** 创建/编辑弹窗是否显示 */
 const dialogVisible = ref(false)
+/** 详情弹窗是否显示 */
 const detailVisible = ref(false)
+/** 是否处于编辑模式 */
 const isEditing = ref(false)
+/** 是否正在提交表单 */
 const submitting = ref(false)
+/** 当前选中的职位 */
 const selectedPosition = ref<JobPosition | null>(null)
 
+// 分页相关
+/** 当前页码 */
 const currentPage = ref(1)
+/** 每页显示数量 */
 const pageSize = ref(12)
 
+// 搜索筛选表单
+/** 搜索筛选条件 */
 const searchForm = reactive({
+  /** 职位名称关键词 */
   name: '',
+  /** 职位分类筛选 */
   category: '',
+  /** 职位级别筛选 */
   level: ''
 })
 
+// 职位表单数据
+/** 创建/编辑职位的表单数据 */
 const positionForm = reactive<JobPositionCreateDTO>({
+  /** 职位名称 */
   name: '',
+  /** 职位分类 */
   category: '',
+  /** 职位级别 */
   level: '',
+  /** 职位描述 */
   description: '',
+  /** 技能要求列表 */
   skills: ['']
 })
 
+// 表单引用和验证规则
+/** 表单实例引用 */
 const formRef = ref<FormInstance>()
 
+/** 表单验证规则 */
 const formRules: FormRules = {
   name: [
     { required: true, message: '请输入岗位名称', trigger: 'blur' }
@@ -315,6 +352,9 @@ const formRules: FormRules = {
   ]
 }
 
+// ========== 计算属性 ==========
+
+/** 根据搜索条件过滤后的职位列表 */
 const filteredPositions = computed(() => {
   return positions.value.filter(position => {
     const matchName = !searchForm.name || position.name.toLowerCase().includes(searchForm.name.toLowerCase())
@@ -324,17 +364,30 @@ const filteredPositions = computed(() => {
   })
 })
 
+/** 分页后的职位列表 */
 const paginatedPositions = computed(() => {
   const start = (currentPage.value - 1) * pageSize.value
   const end = start + pageSize.value
   return filteredPositions.value.slice(start, end)
 })
 
+// ========== 生命周期钩子 ==========
+onMounted(() => {
+  loadPositions()
+})
+
+// ========== 数据加载方法 ==========
+
+/**
+ * 加载职位列表数据
+ * 获取所有职位并提取分类信息用于筛选
+ */
 const loadPositions = async () => {
   try {
     loading.value = true
     positions.value = await getPositionsApi()
     
+    // 提取唯一的职位分类
     const uniqueCategories = [...new Set(positions.value.map(p => p.category))]
     categories.value = uniqueCategories
   } catch (error) {
@@ -344,10 +397,20 @@ const loadPositions = async () => {
   }
 }
 
+// ========== 搜索和筛选方法 ==========
+
+/**
+ * 执行搜索操作
+ * 重置页码到第一页
+ */
 const handleSearch = () => {
   currentPage.value = 1
 }
 
+/**
+ * 重置搜索条件
+ * 清空所有筛选条件并回到第一页
+ */
 const resetSearch = () => {
   searchForm.name = ''
   searchForm.category = ''
@@ -355,12 +418,22 @@ const resetSearch = () => {
   currentPage.value = 1
 }
 
+// ========== 弹窗操作方法 ==========
+
+/**
+ * 打开创建职位弹窗
+ * 重置表单并设置为创建模式
+ */
 const openCreateDialog = () => {
   isEditing.value = false
   resetForm()
   dialogVisible.value = true
 }
 
+/**
+ * 重置表单数据
+ * 清空所有表单字段并清除验证状态
+ */
 const resetForm = () => {
   Object.assign(positionForm, {
     name: '',
@@ -372,21 +445,42 @@ const resetForm = () => {
   formRef.value?.clearValidate()
 }
 
+/**
+ * 添加技能输入框
+ * 在技能要求列表末尾添加新的空输入框
+ */
 const addSkill = () => {
   positionForm.skills.push('')
 }
 
+/**
+ * 移除指定索引的技能输入框
+ * 保证至少保留一个输入框
+ * @param index 要移除的技能索引
+ */
 const removeSkill = (index: number) => {
   if (positionForm.skills.length > 1) {
     positionForm.skills.splice(index, 1)
   }
 }
 
+// ========== 职位操作方法 ==========
+
+/**
+ * 查看职位详情
+ * 在详情弹窗中显示职位完整信息
+ * @param position 职位对象
+ */
 const viewPosition = (position: JobPosition) => {
   selectedPosition.value = position
   detailVisible.value = true
 }
 
+/**
+ * 编辑职位信息
+ * 填充表单数据并打开编辑弹窗
+ * @param position 要编辑的职位对象
+ */
 const editPosition = (position: JobPosition) => {
   isEditing.value = true
   Object.assign(positionForm, {
@@ -397,6 +491,10 @@ const editPosition = (position: JobPosition) => {
   dialogVisible.value = true
 }
 
+/**
+ * 提交表单数据
+ * 根据编辑模式创建或更新职位信息
+ */
 const submitForm = async () => {
   if (!formRef.value) return
 
@@ -404,6 +502,7 @@ const submitForm = async () => {
     await formRef.value.validate()
     submitting.value = true
 
+    // 过滤掉空的技能项
     const formData = {
       ...positionForm,
       skills: positionForm.skills.filter(skill => skill.trim())
@@ -426,6 +525,11 @@ const submitForm = async () => {
   }
 }
 
+/**
+ * 删除职位
+ * 显示确认对话框后删除指定职位
+ * @param position 要删除的职位对象
+ */
 const deletePosition = async (position: JobPosition) => {
   try {
     await ElMessageBox.confirm(
@@ -448,12 +552,26 @@ const deletePosition = async (position: JobPosition) => {
   }
 }
 
+// ========== 工具方法 ==========
+
+/**
+ * 根据职位分类获取标签颜色类型
+ * 使用哈希算法为不同分类分配颜色
+ * @param category 职位分类
+ * @returns Element Plus 标签类型
+ */
 const getCategoryType = (category: string) => {
   const types = ['primary', 'success', 'warning', 'danger', 'info']
   const hash = category.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   return types[hash % types.length]
 }
 
+/**
+ * 根据职位级别获取标签颜色类型
+ * 为不同级别设置对应的颜色主题
+ * @param level 职位级别
+ * @returns Element Plus 标签类型
+ */
 const getLevelType = (level: string) => {
   const typeMap: Record<string, string> = {
     '初级': 'success',
@@ -463,10 +581,6 @@ const getLevelType = (level: string) => {
   }
   return typeMap[level] || 'info'
 }
-
-onMounted(() => {
-  loadPositions()
-})
 </script>
 
 <style scoped>

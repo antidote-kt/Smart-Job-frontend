@@ -1,7 +1,9 @@
 <template>
+  <!-- 创建面试页面 - 用户选择岗位和设置参数来开始新的模拟面试 -->
   <div class="interview-create">
     <PageHeader title="创建新面试" description="选择目标岗位，开始您的模拟面试之旅" />
 
+    <!-- 创建面试表单卡片 -->
     <el-card class="create-card" shadow="hover">
       <el-form
         ref="createFormRef"
@@ -143,49 +145,82 @@
 </template>
 
 <script setup lang="ts">
+// Vue 核心功能导入
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+// Element Plus 组件和消息提示
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+// Element Plus 图标
 import { Monitor, Brush, TrendCharts, Promotion } from '@element-plus/icons-vue'
+// 状态管理
 import { useInterviewStore } from '@/stores/modules/interview'
+// 类型定义
 import type { JobPosition } from '@/api/interview'
 
+// 自定义组件导入
 import PageHeader from '@/components/PageHeader.vue'
 
+// ========== 路由和状态管理实例 ==========
+/** 路由实例 */
 const router = useRouter()
+/** 面试状态管理 */
 const interviewStore = useInterviewStore()
 
+// ========== 表单引用 ==========
+/** 创建面试表单实例引用 */
 const createFormRef = ref<FormInstance>()
+
+// ========== 响应式数据定义 ==========
+
+// UI 状态控制
+/** 是否正在创建面试 */
 const isCreating = ref(false)
 
+// 表单数据
+/** 创建面试的表单数据 */
 const createForm = reactive({
+  /** 面试会话名称 */
   sessionName: '',
+  /** 面试公司名称 */
   company: '',
+  /** 职位分类 */
   category: '',
+  /** 选中的职位ID */
   jobRequirementId: null as number | null
 })
 
+// ========== 表单验证规则 ==========
+
+/** 创建面试表单验证规则 */
 const createRules: FormRules = {
   jobRequirementId: [
     { required: true, message: '请选择岗位', trigger: 'change' }
   ]
 }
 
+// ========== 计算属性 ==========
+
+/** 所有可用的职位分类 */
 const categories = computed(() => {
   const uniqueCategories = [...new Set(interviewStore.jobPositions.map(p => p.category))]
   return uniqueCategories
 })
 
+/** 根据选中分类过滤后的职位列表 */
 const filteredPositions = computed(() => {
   if (!createForm.category) return []
   return interviewStore.jobPositions.filter(p => p.category === createForm.category)
 })
 
+/** 当前选中的职位详情 */
 const selectedPosition = computed(() => {
   if (!createForm.jobRequirementId) return null
   return interviewStore.jobPositions.find(p => p.id === createForm.jobRequirementId) || null
 })
 
+// ========== 快速选项配置 ==========
+
+/** 快速开始选项配置 */
 const quickOptions = [
   {
     category: '技术开发',
@@ -213,10 +248,17 @@ const quickOptions = [
   }
 ]
 
+// ========== 生命周期钩子 ==========
 onMounted(async () => {
   await loadJobPositions()
 })
 
+// ========== 数据加载方法 ==========
+
+/**
+ * 加载职位列表数据
+ * 从服务器获取所有可用的职位信息
+ */
 const loadJobPositions = async () => {
   try {
     await interviewStore.loadJobPositions()
@@ -225,20 +267,42 @@ const loadJobPositions = async () => {
   }
 }
 
+// ========== 表单交互方法 ==========
+
+/**
+ * 职位分类变更处理
+ * 清空已选择的职位
+ */
 const onCategoryChange = () => {
   createForm.jobRequirementId = null
 }
 
+/**
+ * 职位选择变更处理
+ * 自动填充面试会话名称
+ */
 const onPositionChange = () => {
   if (!createForm.sessionName && selectedPosition.value) {
     createForm.sessionName = `${selectedPosition.value.name}面试 - ${new Date().toLocaleDateString()}`
   }
 }
 
+/**
+ * 选择快速开始选项
+ * 设置对应的职位分类
+ * @param option 快速选项配置
+ */
 const selectQuickOption = (option: any) => {
   createForm.category = option.category
 }
 
+// ========== 工具方法 ==========
+
+/**
+ * 根据职位级别获取标签颜色类型
+ * @param level 职位级别
+ * @returns Element Plus 标签类型
+ */
 const getLevelType = (level: string) => {
   const typeMap: Record<string, string> = {
     '初级': 'success',
@@ -248,6 +312,12 @@ const getLevelType = (level: string) => {
   return typeMap[level] || 'info'
 }
 
+// ========== 核心业务方法 ==========
+
+/**
+ * 处理创建面试操作
+ * 验证表单并创建新的面试会话
+ */
 const handleCreateInterview = async () => {
   if (!createFormRef.value) return
 
@@ -255,6 +325,7 @@ const handleCreateInterview = async () => {
     await createFormRef.value.validate()
     isCreating.value = true
 
+    // 调用状态管理中的创建会话方法
     const session = await interviewStore.createSession(
       createForm.jobRequirementId!,
       createForm.sessionName || undefined,
@@ -262,6 +333,7 @@ const handleCreateInterview = async () => {
     )
 
     ElMessage.success('面试创建成功！')
+    // 跳转到面试房间页面
     router.push(`/interview/${session.id}`)
   } catch (error: any) {
     if (!error.response?.data?.message) {

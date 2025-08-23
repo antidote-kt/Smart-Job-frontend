@@ -20,9 +20,9 @@
       <template #default="{ row }">
         <div class="job-info">
           <!-- 职位名称 -->
-          <div class="job-name">{{ row.position || '-' }}</div>
+          <div class="job-name">{{ row.position || '' }}</div>
           <!-- 职位分类 -->
-          <div class="job-category">{{ row.category || '-' }}</div>
+          <div class="job-category">{{ row.category || '' }}</div>
         </div>
       </template>
     </el-table-column>
@@ -49,14 +49,22 @@
     </el-table-column>
     
     <!-- 开始时间列：显示日期和具体时间 -->
-    <el-table-column prop="startTime" label="开始时间" width="180">
+    <el-table-column prop="startTime" label="开始时间" width="150">
       <template #default="{ row }">
-        <div class="date-info">
-          <!-- 日期部分 -->
-          <div class="date">{{ formatDate(row.startTime) }}</div>
-          <!-- 时间部分 -->
-          <div class="time">{{ formatTime(row.startTime) }}</div>
-        </div>
+        <span v-if="row.startTime" class="datetime-text">
+          {{ formatDateTime(row.startTime) }}
+        </span>
+        <span v-else class="no-data">-</span>
+      </template>
+    </el-table-column>
+    
+    <!-- 结束时间列：显示日期和具体时间 -->
+    <el-table-column prop="endTime" label="结束时间" width="150">
+      <template #default="{ row }">
+        <span v-if="row.endTime" class="datetime-text">
+          {{ formatDateTime(row.endTime) }}
+        </span>
+        <span v-else class="no-data">-</span>
       </template>
     </el-table-column>
     
@@ -135,21 +143,12 @@ const emit = defineEmits<Emits>()
 const { isInProgress, isCompleted } = useInterviewStatus()
 
 /**
- * 格式化时间字符串为本地时间格式
- * @param dateString 日期字符串
- * @returns 格式化后的时间字符串 (HH:MM)
+ * 格式化完整的日期时间为统一格式
+ * @param dateString 日期字符串或数组
+ * @returns 格式化后的日期时间字符串 (YYYY/MM/DD HH:MM)
  */
-const formatTime = (dateString?: string) => {
-  if (!dateString) return '-'
-  try {
-    const date = new Date(dateString)
-    return isNaN(date.getTime()) ? '-' : date.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    })
-  } catch {
-    return '-'
-  }
+const formatDateTime = (dateString?: string | number[]) => {
+  return formatDate(dateString)
 }
 
 /**
@@ -159,10 +158,25 @@ const formatTime = (dateString?: string) => {
  */
 const isRecent = (session: InterviewVO) => {
   if (!session.startTime) return false
-  const now = Date.now()
-  const sessionTime = new Date(session.startTime).getTime()
-  // 24小时内算作最近
-  return (now - sessionTime) < (24 * 60 * 60 * 1000)
+  try {
+    const now = Date.now()
+    let sessionTime: number
+    
+    if (Array.isArray(session.startTime)) {
+      // 后端返回数组格式：[year, month, day, hour, minute, second]
+      const [year, month, day, hour = 0, minute = 0, second = 0] = session.startTime
+      const date = new Date(year, month - 1, day, hour, minute, second)
+      sessionTime = date.getTime()
+    } else {
+      sessionTime = new Date(session.startTime).getTime()
+    }
+    
+    if (isNaN(sessionTime)) return false
+    // 24小时内算作最近
+    return (now - sessionTime) < (24 * 60 * 60 * 1000)
+  } catch {
+    return false
+  }
 }
 
 // 事件处理方法
@@ -218,5 +232,18 @@ const handleViewDetail = (session: InterviewVO) => emit('view-detail', session)
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* 无数据显示样式 */
+.no-data {
+  color: #c0c4cc;
+  font-size: 12px;
+}
+
+/* 日期时间文本样式 */
+.datetime-text {
+  font-size: 14px;
+  color: #303133;
+  font-weight: 500;
 }
 </style>

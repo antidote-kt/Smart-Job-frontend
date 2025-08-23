@@ -4,23 +4,22 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/modules/auth'
 import { User, Odometer, Plus, Clock, Setting } from '@element-plus/icons-vue'
 
+// 获取当前路由信息和用户认证状态管理
 const route = useRoute()
 const authStore = useAuthStore()
 
-// 不需要侧栏的页面
+// 定义不需要显示侧栏的页面路径（登录、注册页面）
 const noSidebarRoutes = ['/login', '/register']
-const fullScreenRoutes = computed(() => {
-  return route.path.match(/^\/interview\/\d+$/) // 面试房间页面全屏
-})
 
+// 计算属性：决定是否显示侧边栏
+// 条件：用户已登录 && 不在无侧栏页面列表中
 const showSidebar = computed(() => {
   return authStore.isAuthenticated && 
-         !noSidebarRoutes.includes(route.path) && 
-         !fullScreenRoutes.value
+         !noSidebarRoutes.includes(route.path)
 })
 
+// 组件挂载时执行：从本地存储加载用户认证信息
 onMounted(() => {
-  // Ensure auth state is loaded
   authStore.loadUserFromStorage()
 })
 </script>
@@ -134,31 +133,7 @@ onMounted(() => {
       </el-container>
     </el-container>
     
-    <!-- 全屏布局（面试房间等） -->
-    <el-container v-else-if="authStore.isAuthenticated">
-      <el-header v-if="!fullScreenRoutes" class="modern-header">
-        <div class="header-content">
-          <div class="header-left">
-            <div class="logo">
-              <div class="logo-icon">🎯</div>
-              <span class="logo-text">JobSmart</span>
-            </div>
-          </div>
-          <div class="header-right">
-            <el-button @click="authStore.logout" text>
-              <el-icon><User /></el-icon>
-              退出登录
-            </el-button>
-          </div>
-        </div>
-      </el-header>
-      
-      <el-main :class="{ 'fullscreen-main': fullScreenRoutes }">
-        <RouterView />
-      </el-main>
-    </el-container>
-    
-    <!-- 登录页面 -->
+    <!-- 未登录时显示登录页面 -->
     <div v-else>
       <RouterView />
     </div>
@@ -350,13 +325,6 @@ html, body {
   padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
-}
-
-.fullscreen-main {
-  padding: 0 !important;
-  margin: 0 !important;
-  background: #ffffff;
-  min-height: 100vh !important;
 }
 
 /* 现代化卡片样式 */

@@ -3,10 +3,8 @@
     <!-- Room Header -->
     <div class="room-header">
       <div class="session-info">
-        <h2>{{ session?.title || `面试 ${sessionId}` }}</h2>
+        <h2>{{ session?.title || `${session?.company || '面试公司'} - ${session?.position || '面试岗位'} 面试` }}</h2>
         <div class="session-details">
-          <StatusTag :status="session?.status" size="large" />
-          <span class="separator">|</span>
           <span>已回答: {{ session?.answeredQuestions || 0 }} 题</span>
           <span class="separator">|</span>
           <span>平均分: <ScoreDisplay :score="currentAverageScore" :precision="1" /></span>
@@ -28,7 +26,6 @@
           :total="targetQuestions"
           label="面试进度"
           unit="题"
-          :estimated-time="estimatedRemainingTime"
         />
       </div>
 
@@ -61,8 +58,8 @@
             :enable-voice-input="true"
             :submitting="isSubmitting"
             @submit="submitAnswer"
-            @voice-start="startVoiceInput"
-            @voice-stop="stopVoiceInput"
+            @voice-start="() => {}"
+            @voice-stop="() => {}"
           />
         </el-col>
 
@@ -206,55 +203,82 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+// Vue 相关导入
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+// Element Plus 组件和消息提示
 import { ElMessage, ElMessageBox } from 'element-plus'
+// Element Plus 图标
 import { 
-  ArrowLeft, QuestionFilled, EditPen, Microphone, Operation, 
+  ArrowLeft, QuestionFilled, Operation,
   TrendCharts, List
 } from '@element-plus/icons-vue'
 
+// 自定义组件导入
 import QuestionCard from '@/components/QuestionCard.vue'
 import AnswerInput from '@/components/AnswerInput.vue'
 import ProgressCard from '@/components/ProgressCard.vue'
-import StatusTag from '@/components/StatusTag.vue'
 import ScoreDisplay from '@/components/ScoreDisplay.vue'
 
+// 状态管理和工具函数
 import { useInterviewStore } from '@/stores/modules/interview'
-import { formatSessionName } from '@/utils/formatters'
+// API 类型定义和接口
 import type { InterviewVO, InterviewQuestionVO, AnswerEvaluation } from '@/api/interview'
 import { getInterviewQuestionsApi } from '@/api/interview'
 
+// 路由实例
 const router = useRouter()
 const route = useRoute()
+// 面试状态管理
 const interviewStore = useInterviewStore()
 
+// 从路由参数获取会话ID
 const sessionId = computed(() => Number(route.params.id))
 
+// ========== 响应式数据定义 ==========
+
 // 基础状态
+/** 当前面试会话信息 */
 const session = ref<InterviewVO | null>(null)
+/** 当前显示的问题 */
 const currentQuestion = ref<InterviewQuestionVO | null>(null)
+/** 当前回答内容 */
 const currentAnswer = ref('')
+/** 当前问题的评价结果 */
 const currentEvaluation = ref<AnswerEvaluation | null>(null)
+/** 已回答的问题列表 */
 const answeredQuestions = ref<InterviewQuestionVO[]>([])
 
-// UI 状态
+// UI 状态控制
+/** 是否正在生成问题 */
 const isGenerating = ref(false)
+/** 是否正在提交回答 */
 const isSubmitting = ref(false)
+/** 是否正在语音输入（保留用于扩展） */
 const isListening = ref(false)
+/** 是否正在结束面试 */
 const isEndingInterview = ref(false)
+/** 评价弹窗是否显示 */
 const evaluationDialogVisible = ref(false)
 
 // 面试配置
+/** 目标问题数量 */
 const targetQuestions = ref(10)
+/** 已用时间（秒） */
 const elapsedTime = ref(0)
-const timerInterval = ref<NodeJS.Timeout>()
+/** 计时器引用 */
+const timerInterval = ref<number>()
 
-// 计算属性
+// ========== 计算属性 ==========
+
+/** 已回答问题数量 */
 const questionCount = computed(() => answeredQuestions.value.length)
+/** 是否已输入回答 */
 const hasAnswered = computed(() => currentAnswer.value.trim().length > 0)
+/** 当前回答字数统计 */
 const answerWordCount = computed(() => currentAnswer.value.replace(/\s/g, '').length)
 
+/** 当前平均分数计算 */
 const currentAverageScore = computed(() => {
   const validScores = answeredQuestions.value
     .map(q => q.score)
@@ -264,19 +288,12 @@ const currentAverageScore = computed(() => {
   return validScores.reduce((sum, score) => sum + score!, 0) / validScores.length
 })
 
+/** 显示的问题文本 */
 const displayQuestion = computed(() => {
   return currentQuestion.value?.questionText || ''
 })
 
-const estimatedRemainingTime = computed(() => {
-  if (questionCount.value === 0) return ''
-  const avgTimePerQuestion = elapsedTime.value / questionCount.value
-  const remainingQuestions = targetQuestions.value - questionCount.value
-  const remainingSeconds = Math.round(avgTimePerQuestion * remainingQuestions)
-  return formatDuration(remainingSeconds)
-})
-
-// 生命周期
+// ========== 生命周期钩子 ==========
 onMounted(async () => {
   await loadSession()
   startTimer()
@@ -286,29 +303,49 @@ onUnmounted(() => {
   stopTimer()
 })
 
-// 基础方法
+// ========== 基础工具方法 ==========
+
+/**
+ * 加载面试会话信息
+ * 获取面试详情和历史回答记录
+ */
 const loadSession = async () => {
   try {
     session.value = await interviewStore.loadSession(sessionId.value)
-    answeredQuestions.value = await getInterviewQuestionsApi(sessionId.value)
+    // 获取所有问题，只保留已回答的问题到历史记录
+    const allQuestions = await getInterviewQuestionsApi(sessionId.value)
+    answeredQuestions.value = allQuestions.filter(q => q.userAnswer && q.userAnswer.trim() !== '')
   } catch (error) {
     ElMessage.error('加载面试信息失败')
     router.back()
   }
 }
 
+/**
+ * 启动面试计时器
+ * 每秒更新一次已用时间
+ */
 const startTimer = () => {
   timerInterval.value = setInterval(() => {
     elapsedTime.value++
   }, 1000)
 }
 
+/**
+ * 停止面试计时器
+ * 清理定时器资源
+ */
 const stopTimer = () => {
   if (timerInterval.value) {
     clearInterval(timerInterval.value)
   }
 }
 
+/**
+ * 格式化时间显示
+ * @param seconds 秒数
+ * @returns 格式化后的时间字符串（HH:mm:ss 或 mm:ss）
+ */
 const formatDuration = (seconds: number) => {
   const hours = Math.floor(seconds / 3600)
   const minutes = Math.floor((seconds % 3600) / 60)
@@ -320,8 +357,19 @@ const formatDuration = (seconds: number) => {
   return `${minutes}:${secs.toString().padStart(2, '0')}`
 }
 
-// 面试操作
+// ========== 面试核心操作方法 ==========
+
+/**
+ * 获取下一个面试问题
+ * 支持流式显示问题生成过程
+ */
 const getNextQuestion = async () => {
+  // 防止重复点击
+  if (isGenerating.value) {
+    ElMessage.warning('正在生成问题，请稍候...')
+    return
+  }
+  
   try {
     // 检查面试状态，如果是已创建状态（0），则先开始面试
     if (session.value?.status === 0) {
@@ -338,6 +386,9 @@ const getNextQuestion = async () => {
     }
     
     isGenerating.value = true
+    
+    // 清除当前问题（避免显示上一题内容）
+    currentQuestion.value = null
     
     // 使用流式接口获取问题
     let fullQuestion = ''
@@ -360,7 +411,6 @@ const getNextQuestion = async () => {
       },
       (completeQuestion: string) => {
         // 问题生成完成
-        console.log('问题生成完成:', completeQuestion)
         if (currentQuestion.value) {
           currentQuestion.value.questionText = completeQuestion
         }
@@ -372,11 +422,17 @@ const getNextQuestion = async () => {
   } catch (error) {
     console.error('获取问题失败:', error)
     ElMessage.error('获取问题失败')
+    // 发生错误时清除当前问题
+    currentQuestion.value = null
   } finally {
     isGenerating.value = false
   }
 }
 
+/**
+ * 提交用户回答
+ * 获取AI评价并自动处理后续流程
+ */
 const submitAnswer = async () => {
   if (!currentQuestion.value || !currentAnswer.value.trim()) return
 
@@ -410,6 +466,33 @@ const submitAnswer = async () => {
       viewCurrentEvaluation()
     }, 1000)
     
+    // 检查是否还需要继续面试，如果没有达到目标题数，自动获取下一题
+    if (questionCount.value < targetQuestions.value) {
+      setTimeout(async () => {
+        try {
+          await getNextQuestion()
+        } catch (error) {
+          console.error('自动获取下一题失败:', error)
+          ElMessage.warning('可以手动点击"换一题"继续面试')
+        }
+      }, 2500) // 延迟2.5秒，让用户有时间查看评价
+    } else {
+      ElMessage.success('恭喜！您已完成所有题目，正在自动结束面试...')
+      // 自动结束面试
+      setTimeout(async () => {
+        try {
+          isEndingInterview.value = true
+          await interviewStore.endSession(sessionId.value)
+          ElMessage.success('面试已结束，正在跳转到报告页面')
+          router.push(`/interview/${sessionId.value}/report`)
+        } catch (error) {
+          ElMessage.error('自动结束面试失败，请手动点击"结束面试"按钮')
+        } finally {
+          isEndingInterview.value = false
+        }
+      }, 3000) // 延迟3秒后自动结束面试
+    }
+    
   } catch (error) {
     ElMessage.error('提交回答失败')
   } finally {
@@ -417,12 +500,22 @@ const submitAnswer = async () => {
   }
 }
 
+// ========== 界面交互方法 ==========
+
+/**
+ * 查看当前问题的评价结果
+ * 显示评价弹窗
+ */
 const viewCurrentEvaluation = () => {
   if (currentEvaluation.value) {
     evaluationDialogVisible.value = true
   }
 }
 
+/**
+ * 查看历史问题详情
+ * @param question 问题对象
+ */
 const viewQuestionDetail = (question: InterviewQuestionVO) => {
   // 显示问题详情
   ElMessageBox.alert(
@@ -432,29 +525,17 @@ const viewQuestionDetail = (question: InterviewQuestionVO) => {
   )
 }
 
-// 语音输入
-const startVoiceInput = () => {
-  isListening.value = true
-  // TODO: 实现语音识别逻辑
-}
-
-const stopVoiceInput = () => {
-  isListening.value = false
-  // TODO: 停止语音识别并处理结果
-}
-
-const handleVoiceInput = () => {
-  if (isListening.value) {
-    stopVoiceInput()
-  } else {
-    startVoiceInput()
-  }
-}
-
+/**
+ * 返回上一页
+ */
 const goBack = () => {
   router.back()
 }
 
+/**
+ * 处理结束面试操作
+ * 确认后结束面试并跳转到报告页面
+ */
 const handleEndInterview = async () => {
   try {
     await ElMessageBox.confirm(

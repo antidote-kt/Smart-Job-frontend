@@ -197,55 +197,84 @@
 </template>
 
 <script setup lang="ts">
+// Vue 核心功能导入
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+// Element Plus 组件和消息提示
 import { ElMessage } from 'element-plus'
+// Element Plus 图标
 import { Plus, Document, Check, TrendCharts } from '@element-plus/icons-vue'
+// API 类型定义和接口
 import type { InterviewVO, InterviewQuestionVO, AnswerEvaluation } from '@/api/interview'
 import { getInterviewQuestionsApi, getInterviewEvaluationsApi } from '@/api/interview'
 
+// 自定义组件导入
 import PageHeader from '@/components/PageHeader.vue'
 import StatisticCard from '@/components/StatisticCard.vue'
 import InterviewTable from '@/components/InterviewTable.vue'
 import StatusTag from '@/components/StatusTag.vue'
 import ScoreDisplay from '@/components/ScoreDisplay.vue'
 
+// 状态管理、组合式函数和工具函数
 import { useInterviewStore } from '@/stores/modules/interview'
 import { useStatistics } from '@/composables/useStatistics'
 import { useInterviewStatus } from '@/composables/useInterviewStatus'
 import { formatDate, formatSessionName } from '@/utils/formatters'
 
+// ========== 路由和状态管理实例 ==========
+/** 路由实例 */
 const router = useRouter()
+/** 面试状态管理 */
 const interviewStore = useInterviewStore()
+/** 面试状态判断工具 */
 const { isCompleted } = useInterviewStatus()
 
+// ========== 响应式数据定义 ==========
+
+// UI 状态控制
+/** 是否正在加载会话列表 */
 const isLoading = ref(false)
+/** 详情弹窗是否显示 */
 const detailDialogVisible = ref(false)
+/** 是否正在加载详情数据 */
 const detailLoading = ref(false)
+/** 当前选中的面试会话 */
 const currentSession = ref<InterviewVO | null>(null)
+/** 展开的问题索引数组 */
 const activeQuestions = ref<string[]>([])
 
+/** 问答记录列表（问题和评价的组合） */
 const qaRecords = ref<Array<{
   question: InterviewQuestionVO
   evaluation?: AnswerEvaluation
 }>>([])
 
+// 筛选条件
+/** 筛选条件配置 */
 const filters = reactive({
+  /** 面试状态筛选 */
   status: '',
+  /** 关键词搜索 */
   keyword: ''
 })
 
+// ========== 计算属性 ==========
+
+/** 统计数据计算 */
 const { totalSessions, completedSessions, averageScore } = useStatistics(
   computed(() => interviewStore.sessions)
 )
 
+/** 过滤后的面试会话列表 */
 const filteredSessions = computed(() => {
   let result = [...interviewStore.sessions]
 
+  // 按状态筛选
   if (filters.status) {
     result = result.filter(s => String(s.status) === String(filters.status))
   }
 
+  // 按关键词搜索
   if (filters.keyword) {
     const keyword = filters.keyword.toLowerCase()
     result = result.filter(s => 
@@ -254,49 +283,81 @@ const filteredSessions = computed(() => {
     )
   }
 
+  // 按开始时间倒序排列
   return result.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
 })
 
+// ========== 生命周期钩子 ==========
 onMounted(async () => {
   await loadSessions()
 })
 
+// ========== 数据加载方法 ==========
+
+/**
+ * 加载面试会话列表
+ * 从服务器获取用户的所有面试记录
+ */
 const loadSessions = async () => {
   try {
     isLoading.value = true
     await interviewStore.loadSessions()
   } catch (error) {
-    console.error('❌ HistoryView loadSessions error:', error)
     ElMessage.error(error.message || '加载面试记录失败，请检查网络连接')
   } finally {
     isLoading.value = false
   }
 }
 
+// ========== 筛选和搜索方法 ==========
+
+/**
+ * 重置所有筛选条件
+ * 清空状态和关键词筛选
+ */
 const resetFilters = () => {
   filters.status = ''
   filters.keyword = ''
 }
 
+// ========== 导航操作方法 ==========
+
+/**
+ * 继续未完成的面试
+ * @param session 面试会话对象
+ */
 const resumeInterview = (session: InterviewVO) => {
   router.push(`/interview/${session.id}`)
 }
 
+/**
+ * 查看面试报告
+ * @param session 面试会话对象
+ */
 const viewReport = (session: InterviewVO) => {
   router.push(`/interview/${session.id}/report`)
 }
 
+// ========== 详情弹窗操作方法 ==========
+
+/**
+ * 查看面试详细信息
+ * 加载问答记录和评价数据
+ * @param session 面试会话对象
+ */
 const viewDetail = async (session: InterviewVO) => {
   try {
     detailLoading.value = true
     currentSession.value = session
     detailDialogVisible.value = true
     
+    // 并行加载问题和评价数据
     const [questions, evaluations] = await Promise.all([
       getInterviewQuestionsApi(session.id),
       getInterviewEvaluationsApi(session.id)
     ])
     
+    // 组装问答记录，只包含已回答的问题
     qaRecords.value = questions
       .filter(question => question.userAnswer)
       .map(question => {
@@ -311,6 +372,10 @@ const viewDetail = async (session: InterviewVO) => {
   }
 }
 
+/**
+ * 关闭详情弹窗
+ * 清理相关状态数据
+ */
 const closeDetailDialog = () => {
   detailDialogVisible.value = false
   currentSession.value = null

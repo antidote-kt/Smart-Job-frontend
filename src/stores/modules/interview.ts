@@ -1,3 +1,8 @@
+/**
+ * 面试管理 Store
+ * 使用 Pinia 进行状态管理，管理面试会话、问题、回答等相关数据和操作
+ */
+
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { 
@@ -6,29 +11,48 @@ import {
   finishInterviewApi,
   getUserInterviewsApi,
   getInterviewDetailApi,
-  getNextQuestionApi,
   submitAnswerApi,
   getPositionsApi,
   getNextQuestionStreamApi,
   getInterviewQuestionsApi,
-  getInterviewEvaluationsApi,
   type InterviewVO, 
   type JobPosition, 
   type AnswerEvaluation,
-  type InterviewReport,
-  type AnswerSubmitDTO
 } from '@/api/interview'
 
 export const useInterviewStore = defineStore('interview', () => {
+  // ==================== 状态定义 ====================
+  
+  /** 当前活跃的面试会话 */
   const currentSession = ref<InterviewVO | null>(null)
+  
+  /** 用户所有面试会话列表 */
   const sessions = ref<InterviewVO[]>([])
+  
+  /** 可选择的工作岗位列表 */
   const jobPositions = ref<JobPosition[]>([])
+  
+  /** 当前面试问题文本 */
   const currentQuestion = ref<string>('')
+  
+  /** 当前问题的数据库ID */
   const currentQuestionId = ref<number | null>(null)
+  
+  /** 当前用户回答的内容 */
   const currentAnswer = ref<string>('')
+  
+  /** 最新的回答评价结果 */
   const latestEvaluation = ref<AnswerEvaluation | null>(null)
+  
+  /** 全局加载状态 */
   const isLoading = ref<boolean>(false)
 
+  // ==================== 基础数据加载 ====================
+
+  /**
+   * 加载可选择的工作岗位列表
+   * 用于面试创建时的岗位选择
+   */
   const loadJobPositions = async () => {
     try {
       jobPositions.value = await getPositionsApi()
@@ -38,10 +62,20 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  // ==================== 面试会话管理 ====================
+
+  /**
+   * 创建新的面试会话
+   * @param jobRequirementId 工作岗位ID
+   * @param sessionName 面试会话名称（可选）
+   * @param company 公司名称（可选）
+   * @returns 创建的面试会话对象
+   */
   const createSession = async (jobRequirementId: number, sessionName?: string, company?: string) => {
     try {
       isLoading.value = true
-      // 先获取职位详情
+      
+      // 获取职位详情用于构建面试配置
       const positions = await getPositionsApi()
       const position = positions.find(p => p.id === jobRequirementId)
       
@@ -49,13 +83,14 @@ export const useInterviewStore = defineStore('interview', () => {
         throw new Error(`未找到ID为${jobRequirementId}的职位信息`)
       }
       
+      // 构建创建面试的数据
       const createData = {
         title: sessionName || `${position.name}模拟面试`,
         position: position.name,
         company: company || '目标公司',
         interviewType: 1, // 默认技术面试
         difficultyLevel: position.level === '初级' ? 1 : position.level === '高级' ? 3 : 2,
-        totalQuestions: 10
+        totalQuestions: 10 // 默认10道题
       }
       
       const session = await createInterviewApi(createData)
@@ -69,6 +104,12 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  /**
+   * 开始面试会话
+   * 将面试状态从"已创建"切换到"进行中"
+   * @param sessionId 面试会话ID
+   * @returns 更新后的面试会话对象
+   */
   const startSession = async (sessionId: number) => {
     try {
       isLoading.value = true
@@ -83,6 +124,12 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  /**
+   * 结束面试会话
+   * 将面试状态切换到"已完成"，触发报告生成
+   * @param sessionId 面试会话ID
+   * @returns 更新后的面试会话对象
+   */
   const endSession = async (sessionId: number) => {
     try {
       isLoading.value = true
@@ -97,14 +144,16 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  /**
+   * 加载用户所有面试会话列表
+   * 用于仪表盘和历史记录页面展示
+   */
   const loadSessions = async () => {
     try {
-      console.log('🔄 Loading user interview sessions...')
       sessions.value = await getUserInterviewsApi()
-      console.log('✅ Successfully loaded', sessions.value.length, 'sessions')
     } catch (error) {
-      console.error('❌ Failed to load sessions:', error)
-      // 检查是否是网络连接问题
+      
+      // 检查是否是网络连接问题，提供更友好的错误信息
       if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
         throw new Error('网络连接失败，请检查网络连接或后端服务是否正常运行')
       }
@@ -112,6 +161,11 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  /**
+   * 加载特定面试会话的详细信息
+   * @param sessionId 面试会话ID
+   * @returns 面试会话详细信息
+   */
   const loadSession = async (sessionId: number) => {
     try {
       isLoading.value = true
@@ -126,39 +180,34 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
-  const getNextQuestion = async (sessionId: number) => {
-    try {
-      isLoading.value = true
-      const response = await getNextQuestionApi(sessionId)
-      currentQuestion.value = response.question
-      currentQuestionId.value = response.questionId || null
-      currentAnswer.value = ''
-      latestEvaluation.value = null
-      return response
-    } catch (error) {
-      console.error('Failed to get next question:', error)
-      throw error
-    } finally {
-      isLoading.value = false
-    }
-  }
+  // ==================== 问答交互管理 ====================
 
+  /**
+   * 提交用户回答并获取AI评价
+   * @param sessionId 面试会话ID  
+   * @param questionText 问题文本（暂未使用）
+   * @param answerText 用户回答内容
+   * @returns AI评价结果
+   */
   const submitAnswer = async (sessionId: number, questionText: string, answerText: string) => {
     try {
       isLoading.value = true
       
+      // 验证问题ID是否存在
       if (!currentQuestionId.value) {
         throw new Error('问题ID未找到，请先获取问题')
       }
 
+      // 提交回答到服务端
       const evaluation = await submitAnswerApi({
         questionId: currentQuestionId.value,
         userAnswer: answerText
       })
       
-      // 刷新会话数据
+      // 刷新会话数据以获取最新状态
       await loadSession(sessionId)
       
+      // 保存最新评价结果
       latestEvaluation.value = evaluation
       return evaluation
     } catch (error) {
@@ -169,11 +218,17 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  // ==================== 报告管理 ====================
 
+  /**
+   * 加载面试评估报告
+   * @param sessionId 面试会话ID
+   * @returns 面试报告对象
+   */
   const loadReport = async (sessionId: number) => {
     try {
       isLoading.value = true
-      // 报告已嵌套在InterviewVO中，直接加载会话即可
+      // 报告数据嵌套在面试会话对象中
       const session = await getInterviewDetailApi(sessionId)
       currentSession.value = session
       return session.report
@@ -185,6 +240,12 @@ export const useInterviewStore = defineStore('interview', () => {
     }
   }
 
+  // ==================== 辅助工具方法 ====================
+
+  /**
+   * 清除当前面试会话的所有临时数据
+   * 用于退出面试或开始新面试时的状态重置
+   */
   const clearCurrentSession = () => {
     currentSession.value = null
     currentQuestion.value = ''
@@ -193,24 +254,40 @@ export const useInterviewStore = defineStore('interview', () => {
     latestEvaluation.value = null
   }
 
-  // 添加获取questionId的辅助方法
+  /**
+   * 刷新当前问题的ID
+   * 用于流式问题生成后获取服务端分配的问题ID
+   * @param sessionId 面试会话ID
+   */
   const refreshQuestionId = async (sessionId: number) => {
     try {
-      // 获取最新的问题列表，取最后一个问题的ID
+      // 获取最新的问题列表，取最后一个问题的ID作为当前问题ID
       const questions = await getInterviewQuestionsApi(sessionId)
       if (questions.length > 0) {
         currentQuestionId.value = questions[questions.length - 1].id
-        console.log('获取到最新问题ID:', currentQuestionId.value)
       }
     } catch (error) {
       console.warn('Failed to get question ID:', error)
     }
   }
 
-  // 流式方法
-  const getNextQuestionStream = async (sessionId: number, onChunk: (chunk: string) => void, onComplete: (fullQuestion: string) => void) => {
+  // ==================== 流式问题生成 ====================
+
+  /**
+   * 获取下一个面试问题（流式方式）
+   * 支持实时显示问题生成过程，提供更好的用户体验
+   * @param sessionId 面试会话ID
+   * @param onChunk 接收问题片段的回调函数
+   * @param onComplete 问题完成生成的回调函数
+   */
+  const getNextQuestionStream = async (
+    sessionId: number, 
+    onChunk: (chunk: string) => void, 
+    onComplete: (fullQuestion: string) => void
+  ) => {
     return new Promise<void>(async (resolve, reject) => {
       try {
+        // 发起流式请求
         const response = await getNextQuestionStreamApi(sessionId)
         
         if (!response.ok) {
@@ -221,11 +298,16 @@ export const useInterviewStore = defineStore('interview', () => {
           throw new Error('No response body')
         }
 
+        // 设置流式数据读取器
         const reader = response.body.getReader()
         const decoder = new TextDecoder('utf-8')
         let fullQuestion = ''
-        let buffer = ''
+        let buffer = '' // 缓存不完整的数据
 
+        /**
+         * 处理接收到的数据缓存
+         * 解析 Server-Sent Events (SSE) 格式的数据流
+         */
         const processBuffer = async () => {
           // 处理完整的 SSE 事件 (以 \n\n 分隔)
           const parts = buffer.split('\n\n')
@@ -237,6 +319,7 @@ export const useInterviewStore = defineStore('interview', () => {
               let eventType = ''
               let data = ''
               
+              // 解析 SSE 格式数据
               for (const line of lines) {
                 const trimmed = line.trim()
                 if (trimmed.startsWith('event:')) {
@@ -245,22 +328,19 @@ export const useInterviewStore = defineStore('interview', () => {
                   data = trimmed.substring(5).trim()
                 }
               }
-              
-              console.log('Processing SSE event:', { eventType, data: JSON.stringify(data) })
-              
+              // 处理消息事件
               if (eventType === 'message') {
                 if (data === '[DONE]') {
-                  console.log('✅ Received [DONE] signal, finalizing...')
+                  // 问题生成完成信号
                   currentQuestion.value = fullQuestion
                   await refreshQuestionId(sessionId)
                   onComplete(fullQuestion)
                   resolve()
                   return true // 表示处理完成
                 } else if (data && data !== '') {
+                  // 问题内容片段
                   fullQuestion += data
                   onChunk(data)
-                  console.log('📝 Added chunk:', JSON.stringify(data))
-                  console.log('📋 Full question so far:', JSON.stringify(fullQuestion))
                 }
               }
             }
@@ -268,49 +348,47 @@ export const useInterviewStore = defineStore('interview', () => {
           return false // 表示未完成
         }
 
+        // 持续读取流式数据
         while (true) {
           const { done, value } = await reader.read()
           
           if (done) {
-            console.log('🔚 Stream reader ended')
-            // 处理剩余的buffer
+            // 处理剩余的缓存数据
             if (buffer.trim()) {
-              console.log('Processing remaining buffer:', JSON.stringify(buffer))
               const completed = await processBuffer()
               if (completed) break
             }
             break
           }
           
+          // 解码新接收的数据块
           const chunk = decoder.decode(value, { stream: true })
-          console.log('📡 Raw chunk received:', JSON.stringify(chunk))
-          
+          // 添加到缓存并处理
           buffer += chunk
           const completed = await processBuffer()
           if (completed) break
         }
         
-        // 如果流正常结束但没有收到 [DONE]
-        console.log('🏁 Stream processing complete. Final question:', JSON.stringify(fullQuestion))
+        // 如果流正常结束但没有收到 [DONE] 信号
         if (fullQuestion.trim()) {
           currentQuestion.value = fullQuestion
           await refreshQuestionId(sessionId)
           onComplete(fullQuestion)
         } else {
-          console.warn('⚠️ No valid question content received')
           throw new Error('未接收到有效的问题内容')
         }
         
         resolve()
       } catch (error) {
-        console.error('❌ Stream error:', error)
         reject(error)
       }
     })
   }
 
+  // ==================== Store 导出 ====================
 
   return {
+    // 状态数据
     currentSession,
     sessions,
     jobPositions,
@@ -319,13 +397,14 @@ export const useInterviewStore = defineStore('interview', () => {
     currentAnswer,
     latestEvaluation,
     isLoading,
+    
+    // 业务方法
     loadJobPositions,
     createSession,
     startSession,
     endSession,
     loadSessions,
     loadSession,
-    getNextQuestion,
     submitAnswer,
     loadReport,
     clearCurrentSession,

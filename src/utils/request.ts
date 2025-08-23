@@ -28,19 +28,10 @@ request.interceptors.request.use(
 // 响应拦截器
 request.interceptors.response.use(
   (response) => {
-    console.log('✅ API Success:', response.config.url, response.status)
     // 成功回调，直接返回data部分
     return response.data
   },
   (error) => {
-    console.error('❌ API Error:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      statusText: error.response?.statusText,
-      data: error.response?.data,
-      message: error.message
-    })
     
     // 失败回调
     // 如果是登录接口的401错误，不要重定向

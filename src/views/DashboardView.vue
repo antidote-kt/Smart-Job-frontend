@@ -1,7 +1,8 @@
 <template>
+  <!-- 主仪表盘页面 - 显示用户面试统计信息和最近面试记录 -->
   <div class="dashboard">
     <div class="dashboard-content">
-            <!-- Welcome Section -->
+            <!-- 欢迎区域：包含欢迎文案和开始面试按钮 -->
             <el-card class="welcome-card" shadow="hover">
               <div class="welcome-content">
                 <div class="welcome-text">
@@ -15,9 +16,10 @@
               </div>
             </el-card>
 
-            <!-- Statistics Cards -->
+            <!-- 统计卡片组：显示面试次数、完成数和平均分数 -->
             <el-row :gutter="20" class="stats-row">
               <el-col :span="8">
+                <!-- 总面试次数统计卡片 -->
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon total">
@@ -31,6 +33,7 @@
                 </el-card>
               </el-col>
               <el-col :span="8">
+                <!-- 已完成面试数量统计卡片 -->
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon completed">
@@ -44,6 +47,7 @@
                 </el-card>
               </el-col>
               <el-col :span="8">
+                <!-- 平均分数统计卡片 -->
                 <el-card class="stat-card">
                   <div class="stat-content">
                     <div class="stat-icon score">
@@ -58,7 +62,7 @@
               </el-col>
             </el-row>
 
-            <!-- Recent Sessions -->
+            <!-- 最近面试记录表格 -->
             <el-card class="recent-sessions" shadow="hover">
               <template #header>
                 <div class="card-header">
@@ -69,28 +73,35 @@
                 </div>
               </template>
 
+              <!-- 面试记录列表表格 -->
               <el-table :data="recentSessions" style="width: 100%" v-loading="isLoading">
+                <!-- 面试名称列 -->
                 <el-table-column prop="sessionName" label="面试名称" width="200">
                   <template #default="{ row }">
                     <span>{{ formatSessionName(row.sessionName, row.id) }}</span>
                   </template>
                 </el-table-column>
+                <!-- 岗位列 -->
                 <el-table-column prop="position" label="岗位" width="150" />
+                <!-- 面试状态列 -->
                 <el-table-column prop="status" label="状态" width="100">
                   <template #default="{ row }">
                     <StatusTag :status="row.status" />
                   </template>
                 </el-table-column>
+                <!-- 总分列 -->
                 <el-table-column prop="overallScore" label="总分" width="100">
                   <template #default="{ row }">
                     <ScoreDisplay :score="row.overallScore" suffix="分" :precision="0" />
                   </template>
                 </el-table-column>
+                <!-- 开始时间列 -->
                 <el-table-column prop="startTime" label="开始时间" width="180">
                   <template #default="{ row }">
                     {{ formatDate(row.startTime) }}
                   </template>
                 </el-table-column>
+                <!-- 操作列：继续面试或查看报告按钮 -->
                 <el-table-column label="操作" fixed="right" width="200">
                   <template #default="{ row }">
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -122,50 +133,84 @@
 </template>
 
 <script setup lang="ts">
+// Vue 3 组合式 API 导入
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+
+// Store 状态管理
 import { useAuthStore } from '@/stores/modules/auth'
 import { useInterviewStore } from '@/stores/modules/interview'
+
+// Element Plus 图标组件
 import { Plus, Document, Check, TrendCharts } from '@element-plus/icons-vue'
+
+// TypeScript 类型定义
 import type { InterviewVO } from '@/api/interview'
 
+// 自定义组件导入
 import StatusTag from '@/components/StatusTag.vue'
 import ScoreDisplay from '@/components/ScoreDisplay.vue'
 import StatisticCard from '@/components/StatisticCard.vue'
+
+// 组合式函数（Composables）导入
 import { useStatistics } from '@/composables/useStatistics'
 import { useInterviewStatus } from '@/composables/useInterviewStatus'
+
+// 工具函数导入
 import { formatDate, formatSessionName } from '@/utils/formatters'
 
+// 路由和状态管理实例
 const router = useRouter()
 const authStore = useAuthStore()
 const interviewStore = useInterviewStore()
+
+// 面试状态判断函数：用于判断面试是否进行中或已完成
 const { isInProgress, isCompleted } = useInterviewStatus()
+
+// 统计数据计算：基于面试会话数据计算总数、完成数、平均分等
 const { totalSessions, completedSessions, averageScore, recentSessions } = useStatistics(
   computed(() => interviewStore.sessions)
 )
 
+// 页面加载状态
 const isLoading = ref(false)
 
+// 组件挂载时加载仪表盘数据
 onMounted(async () => {
   await loadDashboardData()
 })
 
+/**
+ * 加载仪表盘数据
+ * 从服务端获取用户的面试会话列表，用于统计和展示
+ */
 const loadDashboardData = async () => {
   try {
     isLoading.value = true
+    // 从服务端加载所有面试会话数据
     await interviewStore.loadSessions()
   } catch (error) {
+    // 数据加载失败时显示错误提示
     ElMessage.error('加载数据失败')
   } finally {
+    // 无论成功失败都要关闭加载状态
     isLoading.value = false
   }
 }
 
+/**
+ * 继续进行中的面试
+ * @param session 面试会话对象
+ */
 const resumeInterview = (session: InterviewVO) => {
   router.push(`/interview/${session.id}`)
 }
 
+/**
+ * 查看已完成面试的报告
+ * @param session 面试会话对象
+ */
 const viewReport = (session: InterviewVO) => {
   router.push(`/interview/${session.id}/report`)
 }

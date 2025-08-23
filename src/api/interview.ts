@@ -98,17 +98,6 @@ export const startInterviewApi = (id: number): Promise<InterviewVO> => {
   return request.post(`/interview/${id}/start`).then(res => res.data);
 };
 
-// 获取下一题
-export const getNextQuestionApi = (id: number): Promise<QuestionResponse> => {
-  return request.get(`/interview/${id}/next-question`).then(res => {
-    const questionVO = res.data;
-    return {
-      question: questionVO.questionText,
-      questionId: questionVO.id
-    };
-  });
-};
-
 // 提交答案
 export const submitAnswerApi = (data: AnswerSubmitDTO): Promise<AnswerEvaluation> => {
   return request.post('/interview/submit-answer', data).then(res => {
@@ -164,14 +153,6 @@ export const getPositionsApi = (): Promise<JobPosition[]> => {
       requirements: Array.isArray(item.requirements) ? item.requirements.filter(r => r && r.trim()) : [],
       skills: Array.isArray(item.skills) ? item.skills.filter(s => s && s.trim()) : []
     }));
-  });
-};
-
-// 获取职位分类
-export const getPositionCategoriesApi = (): Promise<string[]> => {
-  return request.get('/positions/categories').then(res => {
-    const categories = res.data || [];
-    return categories.map((item: any) => item.category);
   });
 };
 

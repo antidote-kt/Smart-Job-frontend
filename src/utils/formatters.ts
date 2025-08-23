@@ -38,11 +38,6 @@ export const formatDate = (dateInput?: string | number[]) => {
   }
 }
 
-export const formatScore = (score: number, precision: number = 1): string => {
-  if (score <= 0) return '-'
-  return score.toFixed(precision)
-}
-
 export const formatSessionName = (sessionName?: string, id?: number): string => {
   return sessionName || `面试 #${id}`
 }

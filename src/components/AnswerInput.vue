@@ -16,12 +16,25 @@
         <div class="answer-actions">
           <!-- 语音输入按钮 -->
           <el-button
-            v-if="enableVoiceInput"
+            v-if="enableVoiceInput && speechRecognitionSupported"
             :type="isRecording ? 'danger' : 'primary'"
             :icon="isRecording ? 'VideoPause' : 'Microphone'"
             @click="toggleRecording"
             circle
           />
+          <!-- 语音不支持提示 -->
+          <el-tooltip
+            v-else-if="enableVoiceInput && !speechRecognitionSupported"
+            content="您的浏览器不支持语音识别功能"
+            placement="top"
+          >
+            <el-button
+              type="info"
+              :icon="Microphone"
+              disabled
+              circle
+            />
+          </el-tooltip>
           <!-- 提交回答按钮 -->
           <el-button
             v-if="showSubmit"
@@ -77,8 +90,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { EditPen, Microphone, Loading } from '@element-plus/icons-vue'
+
+// TypeScript声明
+declare global {
+  interface Window {
+    SpeechRecognition: any
+    webkitSpeechRecognition: any
+  }
+}
 
 /**
  * 组件属性接口定义
@@ -134,7 +155,7 @@ const transcribing = ref(false)
 /** 录音时长（秒） */
 const recordingTime = ref(0)
 /** 录音计时器 */
-const recordingTimer = ref<NodeJS.Timeout>()
+const recordingTimer = ref<number>()
 
 /**
  * 计算属性：统计答案字数（不包括空格）
@@ -178,11 +199,72 @@ const toggleRecording = () => {
   }
 }
 
+// 语音识别相关变量
+/** 语音识别实例 */
+const recognition = ref<any>(null)
+/** 语音识别是否支持 */
+const speechRecognitionSupported = ref(false)
+
+// 检查浏览器是否支持语音识别
+const checkSpeechRecognitionSupport = () => {
+  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+    speechRecognitionSupported.value = true
+    // 创建语音识别实例
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    recognition.value = new SpeechRecognition()
+    
+    // 配置语音识别
+    recognition.value.continuous = true
+    recognition.value.interimResults = true
+    recognition.value.lang = 'zh-CN'
+    
+    // 监听识别结果
+    recognition.value.onresult = (event) => {
+      let transcript = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          transcript += event.results[i][0].transcript
+        }
+      }
+      
+      if (transcript) {
+        // 将识别的文字添加到答案中
+        const newText = localAnswer.value + (localAnswer.value ? ' ' : '') + transcript
+        localAnswer.value = newText
+        emit('update:modelValue', newText)
+      }
+    }
+    
+    // 监听错误事件
+    recognition.value.onerror = () => {
+      stopRecording()
+    }
+    
+    // 监听结束事件
+    recognition.value.onend = () => {
+      if (isRecording.value) {
+        // 如果还在录音状态，重启识别
+        try {
+          recognition.value?.start()
+        } catch (error) {
+          stopRecording()
+        }
+      }
+    }
+  } else {
+    speechRecognitionSupported.value = false
+  }
+}
+
 /**
  * 开始录音
  * 设置录音状态，启动计时器，发射开始录音事件
  */
 const startRecording = () => {
+  if (!speechRecognitionSupported.value) {
+    return
+  }
+  
   isRecording.value = true
   recordingTime.value = 0
   
@@ -190,6 +272,17 @@ const startRecording = () => {
   recordingTimer.value = setInterval(() => {
     recordingTime.value++
   }, 1000)
+  
+  // 开始语音识别
+  try {
+    recognition.value?.start()
+  } catch (error) {
+    isRecording.value = false
+    if (recordingTimer.value) {
+      clearInterval(recordingTimer.value)
+    }
+    return
+  }
   
   emit('voice-start')
 }
@@ -207,12 +300,17 @@ const stopRecording = () => {
     clearInterval(recordingTimer.value)
   }
   
+  // 停止语音识别
+  if (recognition.value) {
+    recognition.value.stop()
+  }
+  
   emit('voice-stop')
   
-  // 模拟语音转文字的处理时间
+  // 等待语音识别完成
   setTimeout(() => {
     transcribing.value = false
-  }, 2000)
+  }, 1000)
 }
 
 /**
@@ -222,6 +320,21 @@ const stopRecording = () => {
 const handleSubmit = () => {
   emit('submit')
 }
+
+// 生命周期钩子
+onMounted(() => {
+  checkSpeechRecognitionSupport()
+})
+
+onUnmounted(() => {
+  // 清理资源
+  if (recordingTimer.value) {
+    clearInterval(recordingTimer.value)
+  }
+  if (recognition.value && isRecording.value) {
+    recognition.value.stop()
+  }
+})
 </script>
 
 <style scoped>
