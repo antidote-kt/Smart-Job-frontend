@@ -224,7 +224,7 @@ import ScoreDisplay from '@/components/ScoreDisplay.vue'
 import { useInterviewStore } from '@/stores/modules/interview'
 // API 类型定义和接口
 import type { InterviewVO, InterviewQuestionVO, AnswerEvaluation } from '@/api/interview'
-import { getInterviewQuestionsApi } from '@/api/interview'
+import { getInterviewQuestionsApi, getInterviewEvaluationsApi } from '@/api/interview'
 
 // 路由实例
 const router = useRouter()
@@ -506,9 +506,35 @@ const submitAnswer = async () => {
  * 查看当前问题的评价结果
  * 显示评价弹窗
  */
-const viewCurrentEvaluation = () => {
-  if (currentEvaluation.value) {
-    evaluationDialogVisible.value = true
+const viewCurrentEvaluation = async () => {
+  try {
+    // 如果已经有当前评价数据，直接显示
+    if (currentEvaluation.value) {
+      evaluationDialogVisible.value = true
+      return
+    }
+    
+    // 如果没有评价数据，尝试获取最新的评价
+    if (answeredQuestions.value.length > 0) {
+      // 获取所有评价数据
+      const evaluations = await getInterviewEvaluationsApi(sessionId.value)
+      
+      // 找到最新回答问题的评价
+      const lastAnsweredQuestion = answeredQuestions.value[answeredQuestions.value.length - 1]
+      const lastEvaluation = evaluations.find(e => e.qaRecordId === lastAnsweredQuestion.id)
+      
+      if (lastEvaluation) {
+        currentEvaluation.value = lastEvaluation
+        evaluationDialogVisible.value = true
+      } else {
+        ElMessage.warning('暂无评价数据，请先完成一道题目')
+      }
+    } else {
+      ElMessage.warning('暂无评价数据，请先完成一道题目')
+    }
+  } catch (error) {
+    console.error('获取评价数据失败:', error)
+    ElMessage.error('获取评价数据失败')
   }
 }
 
