@@ -4,21 +4,16 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/modules/auth'
 import { User, Odometer, Plus, Clock, Setting } from '@element-plus/icons-vue'
 
-// 获取当前路由信息和用户认证状态管理
 const route = useRoute()
 const authStore = useAuthStore()
 
-// 定义不需要显示侧栏的页面路径（登录、注册页面）
 const noSidebarRoutes = ['/login', '/register']
 
-// 计算属性：决定是否显示侧边栏
-// 条件：用户已登录 && 不在无侧栏页面列表中
 const showSidebar = computed(() => {
   return authStore.isAuthenticated && 
          !noSidebarRoutes.includes(route.path)
 })
 
-// 组件挂载时执行：从本地存储加载用户认证信息
 onMounted(() => {
   authStore.loadUserFromStorage()
 })

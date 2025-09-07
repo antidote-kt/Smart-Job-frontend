@@ -107,7 +107,7 @@
         <!-- 面试基本信息 -->
         <el-descriptions v-if="currentSession" :column="2" border>
           <el-descriptions-item label="面试名称">
-            {{ formatSessionName(currentSession.sessionName, currentSession.id) }}
+            {{ formatSessionName(currentSession.title, currentSession.id) }}
           </el-descriptions-item>
           <el-descriptions-item label="应聘岗位">
             {{ currentSession.position || '-' }}
@@ -278,7 +278,7 @@ const filteredSessions = computed(() => {
   if (filters.keyword) {
     const keyword = filters.keyword.toLowerCase()
     result = result.filter(s => 
-      (s.sessionName?.toLowerCase().includes(keyword)) ||
+      (s.title?.toLowerCase().includes(keyword)) ||
       (s.position?.toLowerCase().includes(keyword))
     )
   }

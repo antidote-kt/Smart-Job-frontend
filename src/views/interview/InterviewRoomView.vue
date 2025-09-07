@@ -104,7 +104,7 @@
                 class="control-btn"
                 type="default"
               >
-                查看当前评价
+                查看已回答问题的评价
               </el-button>
             </div>
           </el-card>
@@ -139,33 +139,6 @@
               </div>
             </div>
           </el-card>
-
-          <!-- 历史记录 -->
-          <el-card v-if="answeredQuestions.length > 0" class="history-panel" shadow="hover">
-            <template #header>
-              <div class="panel-header">
-                <el-icon><List /></el-icon>
-                <span>答题记录</span>
-              </div>
-            </template>
-
-            <div class="history-list">
-              <div
-                v-for="(item, index) in answeredQuestions"
-                :key="item.id"
-                class="history-item"
-                @click="viewQuestionDetail(item)"
-              >
-                <div class="history-header">
-                  <span class="question-number">第{{ index + 1 }}题</span>
-                  <ScoreDisplay :score="item.score || 0" :precision="1" />
-                </div>
-                <div class="history-content">
-                  <p class="question-preview">{{ item.questionText?.slice(0, 30) }}...</p>
-                </div>
-              </div>
-            </div>
-          </el-card>
         </el-col>
       </el-row>
     </div>
@@ -173,29 +146,66 @@
     <!-- 评价对话框 -->
     <el-dialog
       v-model="evaluationDialogVisible"
-      title="答题评价"
-      width="600px"
+      title="已回答问题的评价"
+      width="80%"
       destroy-on-close
     >
-      <div v-if="currentEvaluation" class="evaluation-content">
-        <el-descriptions :column="2" border>
-          <el-descriptions-item label="专业性">
-            <ScoreDisplay :score="currentEvaluation.professionalScore" :precision="1" />
-          </el-descriptions-item>
-          <el-descriptions-item label="逻辑性">
-            <ScoreDisplay :score="currentEvaluation.logicScore" :precision="1" />
-          </el-descriptions-item>
-          <el-descriptions-item label="完整性">
-            <ScoreDisplay :score="currentEvaluation.completenessScore" :precision="1" />
-          </el-descriptions-item>
-          <el-descriptions-item label="综合得分">
-            <ScoreDisplay :score="currentEvaluation.overallScore" :precision="1" />
-          </el-descriptions-item>
-        </el-descriptions>
-
-        <div class="feedback-section">
-          <h4>AI 反馈建议</h4>
-          <p>{{ currentEvaluation.aiFeedback }}</p>
+      <div class="evaluations-content" v-loading="isLoadingEvaluations">
+        <div v-if="qaRecords.length > 0" class="qa-list">
+          <!-- 可折叠的问答评价列表 -->
+          <el-collapse v-model="activeQuestions">
+            <el-collapse-item
+              v-for="(record, index) in qaRecords"
+              :key="record.question.id"
+              :title="`问题 ${index + 1}: ${record.question.questionText.slice(0, 50)}...`"
+              :name="index.toString()"
+            >
+              <div class="qa-content">
+                <!-- 问题内容 -->
+                <div class="question-section">
+                  <h4>问题</h4>
+                  <p>{{ record.question.questionText }}</p>
+                </div>
+                <!-- 用户回答 -->
+                <div class="answer-section">
+                  <h4>回答</h4>
+                  <p>{{ record.question.userAnswer }}</p>
+                </div>
+                <!-- AI评分 -->
+                <div class="evaluation-section">
+                  <h4>评分</h4>
+                  <div v-if="record.evaluation">
+                    <el-descriptions :column="2" border>
+                      <el-descriptions-item label="专业性">
+                        <ScoreDisplay :score="record.evaluation.professionalScore" :precision="1" />
+                      </el-descriptions-item>
+                      <el-descriptions-item label="逻辑性">
+                        <ScoreDisplay :score="record.evaluation.logicScore" :precision="1" />
+                      </el-descriptions-item>
+                      <el-descriptions-item label="完整性">
+                        <ScoreDisplay :score="record.evaluation.completenessScore" :precision="1" />
+                      </el-descriptions-item>
+                      <el-descriptions-item label="综合得分">
+                        <ScoreDisplay :score="record.evaluation.overallScore" :precision="1" />
+                      </el-descriptions-item>
+                    </el-descriptions>
+                    <!-- AI反馈 -->
+                    <div class="feedback-section">
+                      <h4>AI 反馈建议</h4>
+                      <p>{{ record.evaluation.aiFeedback }}</p>
+                    </div>
+                  </div>
+                  <div v-else class="no-evaluation">
+                    <p style="color: #f56c6c;">暂无评价数据 (调试信息: questionId={{ record.question.id }})</p>
+                  </div>
+                </div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+        
+        <div v-else class="empty-state">
+          <el-empty description="暂无已回答问题的评价" />
         </div>
       </div>
     </el-dialog>
@@ -222,6 +232,7 @@ import ScoreDisplay from '@/components/ScoreDisplay.vue'
 
 // 状态管理和工具函数
 import { useInterviewStore } from '@/stores/modules/interview'
+import { useNotificationStore } from '@/stores/modules/notification'
 // API 类型定义和接口
 import type { InterviewVO, InterviewQuestionVO, AnswerEvaluation } from '@/api/interview'
 import { getInterviewQuestionsApi, getInterviewEvaluationsApi } from '@/api/interview'
@@ -231,6 +242,7 @@ const router = useRouter()
 const route = useRoute()
 // 面试状态管理
 const interviewStore = useInterviewStore()
+const notificationStore = useNotificationStore()
 
 // 从路由参数获取会话ID
 const sessionId = computed(() => Number(route.params.id))
@@ -248,6 +260,8 @@ const currentAnswer = ref('')
 const currentEvaluation = ref<AnswerEvaluation | null>(null)
 /** 已回答的问题列表 */
 const answeredQuestions = ref<InterviewQuestionVO[]>([])
+/** 所有问题的评价列表 */
+const allEvaluations = ref<AnswerEvaluation[]>([])
 
 // UI 状态控制
 /** 是否正在生成问题 */
@@ -260,6 +274,16 @@ const isListening = ref(false)
 const isEndingInterview = ref(false)
 /** 评价弹窗是否显示 */
 const evaluationDialogVisible = ref(false)
+/** 是否正在加载评价数据 */
+const isLoadingEvaluations = ref(false)
+/** 展开的问题索引数组 */
+const activeQuestions = ref<string[]>([])
+
+/** 问答记录列表（问题和评价的组合） */
+const qaRecords = ref<Array<{
+  question: InterviewQuestionVO
+  evaluation?: AnswerEvaluation
+}>>([])
 
 // 面试配置
 /** 目标问题数量 */
@@ -312,9 +336,36 @@ onUnmounted(() => {
 const loadSession = async () => {
   try {
     session.value = await interviewStore.loadSession(sessionId.value)
-    // 获取所有问题，只保留已回答的问题到历史记录
+    
+    // 如果是进行中的面试，启动WebSocket连接
+    if (session.value?.status === 1) {
+      notificationStore.startService()
+    }
+    
+    // 获取所有问题
     const allQuestions = await getInterviewQuestionsApi(sessionId.value)
-    answeredQuestions.value = allQuestions.filter(q => q.userAnswer && q.userAnswer.trim() !== '')
+    
+    // 分类问题：已回答的和未回答的
+    const answeredQs = allQuestions.filter(q => q.userAnswer && q.userAnswer.trim() !== '')
+    const unansweredQs = allQuestions.filter(q => !q.userAnswer || q.userAnswer.trim() === '')
+    
+    // 设置已回答的问题到历史记录
+    answeredQuestions.value = answeredQs
+    
+    // 如果有未回答的问题，恢复最新的一个作为当前问题
+    if (unansweredQs.length > 0) {
+      // 按ID排序，获取最新的未回答问题
+      const latestUnanswered = unansweredQs.sort((a, b) => b.id - a.id)[0]
+      currentQuestion.value = latestUnanswered
+      currentAnswer.value = '' // 确保答案输入框为空
+      
+      // 同步更新 store 中的当前问题状态
+      interviewStore.currentQuestion = latestUnanswered.questionText
+      interviewStore.currentQuestionId = latestUnanswered.id
+      
+      ElMessage.success('已恢复未完成的问题，请继续回答')
+    }
+    
   } catch (error) {
     ElMessage.error('加载面试信息失败')
     router.back()
@@ -377,6 +428,9 @@ const getNextQuestion = async () => {
       const startedSession = await interviewStore.startSession(sessionId.value)
       // 更新本地状态
       session.value = startedSession
+      
+      // 面试开始时立即连接 WebSocket，等待报告生成通知
+      notificationStore.startService()
     }
     
     // 检查面试状态是否正确
@@ -410,9 +464,11 @@ const getNextQuestion = async () => {
         }
       },
       (completeQuestion: string) => {
-        // 问题生成完成
+        // 问题生成完成，同步 store 中的问题ID
         if (currentQuestion.value) {
           currentQuestion.value.questionText = completeQuestion
+          // 同步 store 中的问题ID到页面问题对象
+          currentQuestion.value.id = interviewStore.currentQuestionId || 0
         }
       }
     )
@@ -441,7 +497,7 @@ const submitAnswer = async () => {
     
     const evaluation = await interviewStore.submitAnswer(
       sessionId.value,
-      currentQuestion.value.id,
+      currentQuestion.value.questionText,  // 传递问题文本而不是ID
       currentAnswer.value
     )
     
@@ -466,16 +522,14 @@ const submitAnswer = async () => {
       viewCurrentEvaluation()
     }, 1000)
     
-    // 检查是否还需要继续面试，如果没有达到目标题数，自动获取下一题
+    // 同时请求生成下一个问题（如果还没有达到目标题数）
+    // 与显示评价并行进行，提升用户体验
     if (questionCount.value < targetQuestions.value) {
-      setTimeout(async () => {
-        try {
-          await getNextQuestion()
-        } catch (error) {
-          console.error('自动获取下一题失败:', error)
-          ElMessage.warning('可以手动点击"换一题"继续面试')
-        }
-      }, 2500) // 延迟2.5秒，让用户有时间查看评价
+      // 立即开始生成下一个问题，不阻塞当前流程
+      getNextQuestion().catch(error => {
+        console.error('自动获取下一题失败:', error)
+        ElMessage.warning('可以手动点击"换一题"继续面试')
+      })
     } else {
       ElMessage.success('恭喜！您已完成所有题目，正在自动结束面试...')
       // 自动结束面试
@@ -483,8 +537,8 @@ const submitAnswer = async () => {
         try {
           isEndingInterview.value = true
           await interviewStore.endSession(sessionId.value)
-          ElMessage.success('面试已结束，正在跳转到报告页面')
-          router.push(`/interview/${sessionId.value}/report`)
+          ElMessage.success('面试已结束，报告正在生成中，完成后将通知您')
+          router.push('/dashboard')
         } catch (error) {
           ElMessage.error('自动结束面试失败，请手动点击"结束面试"按钮')
         } finally {
@@ -503,38 +557,37 @@ const submitAnswer = async () => {
 // ========== 界面交互方法 ==========
 
 /**
- * 查看当前问题的评价结果
- * 显示评价弹窗
+ * 查看所有已回答问题的评价结果
+ * 显示评价列表弹窗
  */
 const viewCurrentEvaluation = async () => {
   try {
-    // 如果已经有当前评价数据，直接显示
-    if (currentEvaluation.value) {
-      evaluationDialogVisible.value = true
+    if (answeredQuestions.value.length === 0) {
+      ElMessage.warning('暂无已回答问题的评价，请先完成一道题目')
       return
     }
     
-    // 如果没有评价数据，尝试获取最新的评价
-    if (answeredQuestions.value.length > 0) {
-      // 获取所有评价数据
-      const evaluations = await getInterviewEvaluationsApi(sessionId.value)
-      
-      // 找到最新回答问题的评价
-      const lastAnsweredQuestion = answeredQuestions.value[answeredQuestions.value.length - 1]
-      const lastEvaluation = evaluations.find(e => e.qaRecordId === lastAnsweredQuestion.id)
-      
-      if (lastEvaluation) {
-        currentEvaluation.value = lastEvaluation
-        evaluationDialogVisible.value = true
-      } else {
-        ElMessage.warning('暂无评价数据，请先完成一道题目')
-      }
-    } else {
-      ElMessage.warning('暂无评价数据，请先完成一道题目')
-    }
+    isLoadingEvaluations.value = true
+    
+    // 获取所有评价数据
+    const evaluations = await getInterviewEvaluationsApi(sessionId.value)
+    
+    // 组装问答记录，只包含已回答的问题
+    qaRecords.value = answeredQuestions.value
+      .filter(question => question.userAnswer)
+      .map(question => {
+        const evaluation = evaluations.find(e => e.qaRecordId === question.id)
+        return { question, evaluation }
+      })
+    
+    // 显示弹窗
+    evaluationDialogVisible.value = true
+    
   } catch (error) {
     console.error('获取评价数据失败:', error)
     ElMessage.error('获取评价数据失败')
+  } finally {
+    isLoadingEvaluations.value = false
   }
 }
 
@@ -576,8 +629,10 @@ const handleEndInterview = async () => {
 
     isEndingInterview.value = true
     await interviewStore.endSession(sessionId.value)
-    ElMessage.success('面试已结束')
-    router.push(`/interview/${sessionId.value}/report`)
+    ElMessage.success('面试已结束，报告正在生成中，完成后将通知您')
+    
+    // 跳转到主页面，等待通知
+    router.push('/dashboard')
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('结束面试失败')
@@ -784,5 +839,45 @@ const handleEndInterview = async () => {
   padding: 12px;
   border-radius: 6px;
   border-left: 4px solid #f59e0b;
+}
+
+/* 评价弹窗样式 */
+.evaluations-content {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.qa-content {
+  padding: 16px 0;
+}
+
+.question-section,
+.answer-section,
+.evaluation-section {
+  margin-bottom: 16px;
+}
+
+.question-section h4,
+.answer-section h4,
+.evaluation-section h4 {
+  margin: 0 0 8px 0;
+  color: #374151;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.question-section p,
+.answer-section p {
+  margin: 0;
+  line-height: 1.6;
+  color: #374151;
+  background: #f8fafc;
+  padding: 12px;
+  border-radius: 6px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
 }
 </style>

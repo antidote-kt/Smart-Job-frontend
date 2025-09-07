@@ -9,7 +9,7 @@
     <el-table-column prop="title" label="面试名称" width="250">
       <template #default="{ row }">
         <!-- 显示面试标题，如果没有标题则使用默认格式 -->
-        <span>{{ row.title || `面试 ${row.id}` }}</span>
+        <span>{{ formatSessionName(row.title, row.id) }}</span>
         <!-- 24小时内的面试显示"最新"标签 -->
         <el-tag v-if="isRecent(row)" size="small" type="success" style="margin-left: 8px">最新</el-tag>
       </template>
@@ -81,14 +81,24 @@
           >
             继续面试
           </el-button>
-          <!-- 查看报告按钮：面试完成时显示 -->
+          <!-- 查看报告按钮：面试完成且报告已生成时显示 -->
           <el-button
-            v-if="isCompleted(row.status)"
+            v-if="canViewReport(row)"
             type="success"
             size="small"
             @click="handleViewReport(row)"
           >
             查看报告
+          </el-button>
+          <!-- 报告生成中提示：面试完成但报告未生成时显示 -->
+          <el-button
+            v-else-if="isCompleted(row.status)"
+            type="info"
+            size="small"
+            :loading="true"
+            disabled
+          >
+            报告生成中...
           </el-button>
           <!-- 查看详情按钮：有回答记录时显示 -->
           <el-button
@@ -140,7 +150,7 @@ defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // 获取面试状态判断方法
-const { isInProgress, isCompleted } = useInterviewStatus()
+const { isInProgress, isCompleted, canViewReport } = useInterviewStatus()
 
 /**
  * 格式化完整的日期时间为统一格式

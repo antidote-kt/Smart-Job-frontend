@@ -261,10 +261,13 @@ export const useInterviewStore = defineStore('interview', () => {
    */
   const refreshQuestionId = async (sessionId: number) => {
     try {
-      // 获取最新的问题列表，取最后一个问题的ID作为当前问题ID
+      // 获取最新的问题列表
       const questions = await getInterviewQuestionsApi(sessionId)
+      
       if (questions.length > 0) {
-        currentQuestionId.value = questions[questions.length - 1].id
+        // 直接使用最新的问题ID（按时间或ID排序，取最后一个）
+        const latestQuestion = questions.sort((a, b) => b.id - a.id)[0]
+        currentQuestionId.value = latestQuestion.id
       }
     } catch (error) {
       console.warn('Failed to get question ID:', error)

@@ -115,6 +115,59 @@
         </el-row>
       </el-card>
 
+      <!-- 详细分析卡片：五个维度的文本分析 -->
+      <div v-if="report" class="analysis-section">
+        <!-- 表现分析 -->
+        <el-card v-if="report.performanceAnalysis" class="analysis-card" shadow="hover">
+          <template #header>
+            <h3>表现分析</h3>
+          </template>
+          <div class="analysis-content">
+            <p>{{ report.performanceAnalysis }}</p>
+          </div>
+        </el-card>
+
+        <!-- 技能评估 -->
+        <el-card v-if="report.skillAssessment" class="analysis-card" shadow="hover">
+          <template #header>
+            <h3>技能评估</h3>
+          </template>
+          <div class="analysis-content">
+            <p>{{ report.skillAssessment }}</p>
+          </div>
+        </el-card>
+
+        <!-- 优势亮点 -->
+        <el-card v-if="report.strongPoints" class="analysis-card" shadow="hover">
+          <template #header>
+            <h3>优势亮点</h3>
+          </template>
+          <div class="analysis-content">
+            <p>{{ report.strongPoints }}</p>
+          </div>
+        </el-card>
+
+        <!-- 待改进点 -->
+        <el-card v-if="report.weakPoints" class="analysis-card" shadow="hover">
+          <template #header>
+            <h3>待改进点</h3>
+          </template>
+          <div class="analysis-content">
+            <p>{{ report.weakPoints }}</p>
+          </div>
+        </el-card>
+
+        <!-- 改进建议 -->
+        <el-card v-if="report.improvementSuggestions" class="analysis-card" shadow="hover">
+          <template #header>
+            <h3>改进建议</h3>
+          </template>
+          <div class="analysis-content">
+            <p>{{ report.improvementSuggestions }}</p>
+          </div>
+        </el-card>
+      </div>
+
       <!-- 问答详情卡片：每道题的问题、回答和评价 -->
       <el-card class="qa-details" shadow="hover">
         <template #header>
@@ -517,5 +570,47 @@ const goBack = () => {
   line-height: 1.6;
   color: #374151;
   font-size: 16px;
+}
+
+/* 分析内容区域 */
+.analysis-section {
+  margin-bottom: 24px;
+}
+
+.analysis-card {
+  margin-bottom: 20px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.analysis-card:last-child {
+  margin-bottom: 0;
+}
+
+.analysis-card :deep(.el-card__header) {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  border-radius: 12px 12px 0 0;
+  padding: 16px 20px;
+}
+
+.analysis-card :deep(.el-card__header h3) {
+  color: #1e293b;
+  font-weight: 600;
+  font-size: 16px;
+  margin: 0;
+}
+
+.analysis-content {
+  padding: 4px 0;
+}
+
+.analysis-content p {
+  margin: 0;
+  line-height: 1.8;
+  color: #374151;
+  font-size: 15px;
+  text-align: justify;
 }
 </style>

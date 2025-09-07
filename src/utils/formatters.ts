@@ -38,6 +38,6 @@ export const formatDate = (dateInput?: string | number[]) => {
   }
 }
 
-export const formatSessionName = (sessionName?: string, id?: number): string => {
-  return sessionName || `面试 #${id}`
+export const formatSessionName = (title?: string, id?: number): string => {
+  return title || `面试 #${id}`
 }

@@ -34,10 +34,10 @@ const props = withDefaults(defineProps<Props>(), {
 
 /**
  * 计算显示的分数格式
- * 当分数无效时显示"-"，否则按指定精度格式化数值
+ * 当分数为 null/undefined 时显示"-"，否则按指定精度格式化数值（包括0分）
  */
 const displayScore = computed(() => {
-  if (!props.score || props.score <= 0) return '-'
+  if (props.score === null || props.score === undefined) return '-'
   return props.score.toFixed(props.precision)
 })
 </script>

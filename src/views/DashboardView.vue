@@ -76,9 +76,9 @@
               <!-- 面试记录列表表格 -->
               <el-table :data="recentSessions" style="width: 100%" v-loading="isLoading">
                 <!-- 面试名称列 -->
-                <el-table-column prop="sessionName" label="面试名称" width="200">
+                <el-table-column prop="title" label="面试名称" width="200">
                   <template #default="{ row }">
-                    <span>{{ formatSessionName(row.sessionName, row.id) }}</span>
+                    <span>{{ formatSessionName(row.title, row.id) }}</span>
                   </template>
                 </el-table-column>
                 <!-- 岗位列 -->
