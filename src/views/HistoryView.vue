@@ -284,7 +284,16 @@ const filteredSessions = computed(() => {
   }
 
   // 按开始时间倒序排列
-  return result.sort((a, b) => new Date(b.startTime || '').getTime() - new Date(a.startTime || '').getTime())
+  return result.sort((a, b) => {
+    const getValidDate = (dateValue: any): number => {
+      if (!dateValue) return 0
+      if (Array.isArray(dateValue)) return 0
+      const date = new Date(dateValue)
+      return isNaN(date.getTime()) ? 0 : date.getTime()
+    }
+    
+    return getValidDate(b.startTime) - getValidDate(a.startTime)
+  })
 })
 
 // ========== 生命周期钩子 ==========
