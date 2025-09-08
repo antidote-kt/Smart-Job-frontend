@@ -81,24 +81,14 @@
           >
             继续面试
           </el-button>
-          <!-- 查看报告按钮：面试完成且报告已生成时显示 -->
+          <!-- 查看报告按钮：面试完成时显示 -->
           <el-button
-            v-if="canViewReport(row)"
+            v-if="isCompleted(row.status)"
             type="success"
             size="small"
             @click="handleViewReport(row)"
           >
             查看报告
-          </el-button>
-          <!-- 报告生成中提示：面试完成但报告未生成时显示 -->
-          <el-button
-            v-else-if="isCompleted(row.status)"
-            type="info"
-            size="small"
-            :loading="true"
-            disabled
-          >
-            报告生成中...
           </el-button>
           <!-- 查看详情按钮：有回答记录时显示 -->
           <el-button
@@ -150,7 +140,7 @@ defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 // 获取面试状态判断方法
-const { isInProgress, isCompleted, canViewReport } = useInterviewStatus()
+const { isInProgress, isCompleted } = useInterviewStatus()
 
 /**
  * 格式化完整的日期时间为统一格式

@@ -26,32 +26,42 @@ class NotificationService {
     }
 
     try {
-      const wsUrl = `${import.meta.env.VITE_WS_BASE_URL}/ws/notifications?token=${token}`
+      const wsBaseUrl = import.meta.env.VITE_WS_BASE_URL
+      if (!wsBaseUrl) return
       
+      const wsUrl = `${wsBaseUrl}/ws/notifications?token=${token}`
       this.ws = new WebSocket(wsUrl)
       
       this.ws.onopen = () => {
-        console.log('✅ WebSocket连接成功')
+        // WebSocket连接成功
       }
       
       this.ws.onmessage = (event) => {
-        const notification: ReportNotification = JSON.parse(event.data)
-        
-        if (notification.type === 'REPORT_GENERATED') {
-          // 显示通知
-          ElNotification({
-            title: '报告生成完成',
-            message: notification.message + '\n💡 点击此通知可直接查看报告',
-            type: 'success',
-            duration: 10000,
-            onClick: () => router.push(`/interview/${notification.sessionId}/report`)
-          })
+        try {
+          const notification: ReportNotification = JSON.parse(event.data)
           
-          // 刷新面试列表数据
-          const interviewStore = useInterviewStore()
-          interviewStore.loadSessions().catch(console.error)
-          
-          this.disconnect()
+          if (notification.type === 'REPORT_GENERATED') {
+            // 显示通知
+            ElNotification({
+              title: '报告生成完成',
+              message: notification.message + '\n💡 点击此通知可直接查看报告',
+              type: 'success',
+              duration: 10000,
+              onClick: () => router.push(`/interview/${notification.sessionId}/report`)
+            })
+            
+            // 刷新面试列表数据 - 仅在特定页面更新
+            const interviewStore = useInterviewStore()
+            // 只在仪表板或历史页面时才刷新，避免不必要的API调用
+            if (router.currentRoute.value.path === '/dashboard' || 
+                router.currentRoute.value.path === '/history') {
+              interviewStore.loadSessions().catch(() => {})
+            }
+            
+            this.disconnect()
+          }
+        } catch (error) {
+          // 静默处理解析错误
         }
       }
       
@@ -59,12 +69,12 @@ class NotificationService {
         this.ws = null
       }
       
-      this.ws.onerror = (error) => {
-        console.error('WebSocket连接错误:', error)
+      this.ws.onerror = () => {
+        // 静默处理连接错误
       }
       
     } catch (error) {
-      console.error('WebSocket连接失败:', error)
+      // 静默处理连接失败
     }
   }
 

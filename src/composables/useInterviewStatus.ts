@@ -39,19 +39,10 @@ export const useInterviewStatus = () => {
     return statusStr === '1' || status === 'IN_PROGRESS'
   }
 
-  /**
-   * 判断是否可以查看报告
-   * 需要面试完成且有报告数据
-   */
-  const canViewReport = (session: any) => {
-    return isCompleted(session.status) && session.report
-  }
-
   return {
     getStatusType,
     getStatusText,
     isCompleted,
-    isInProgress,
-    canViewReport
+    isInProgress
   }
 }

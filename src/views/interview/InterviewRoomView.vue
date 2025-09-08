@@ -79,7 +79,7 @@
                 v-if="!currentQuestion"
                 type="primary"
                 :loading="isGenerating"
-                @click="getNextQuestion"
+                @click="getNextQuestion(false)"
                 block
                 class="control-btn"
               >
@@ -90,11 +90,12 @@
                 v-else
                 type="primary"
                 :loading="isGenerating"
-                @click="getNextQuestion"
+                :disabled="!canChangeQuestion"
+                @click="getNextQuestion(true)"
                 block
                 class="control-btn"
               >
-                {{ isGenerating ? '换题中...' : '换一题' }}
+                {{ getChangeQuestionButtonText() }}
               </el-button>
 
               <el-button
@@ -136,6 +137,12 @@
               <div class="stat-item">
                 <span class="stat-label">回答字数：</span>
                 <span class="stat-value">{{ answerWordCount }}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">换题次数：</span>
+                <span class="stat-value" :class="{ 'text-warning': questionChangeCount >= MAX_QUESTION_CHANGES }">
+                  {{ questionChangeCount }}/{{ MAX_QUESTION_CHANGES }}
+                </span>
               </div>
             </div>
           </el-card>
@@ -279,6 +286,12 @@ const isLoadingEvaluations = ref(false)
 /** 展开的问题索引数组 */
 const activeQuestions = ref<string[]>([])
 
+// 换题限制相关
+/** 换题次数统计 */
+const questionChangeCount = ref(0)
+/** 最大换题次数 */
+const MAX_QUESTION_CHANGES = 3
+
 /** 问答记录列表（问题和评价的组合） */
 const qaRecords = ref<Array<{
   question: InterviewQuestionVO
@@ -301,6 +314,12 @@ const questionCount = computed(() => answeredQuestions.value.length)
 const hasAnswered = computed(() => currentAnswer.value.trim().length > 0)
 /** 当前回答字数统计 */
 const answerWordCount = computed(() => currentAnswer.value.replace(/\s/g, '').length)
+
+/** 是否可以换题 */
+const canChangeQuestion = computed(() => {
+  // 检查是否超过最大换题次数
+  return questionChangeCount.value < MAX_QUESTION_CHANGES
+})
 
 /** 当前平均分数计算 */
 const currentAverageScore = computed(() => {
@@ -413,12 +432,28 @@ const formatDuration = (seconds: number) => {
 /**
  * 获取下一个面试问题
  * 支持流式显示问题生成过程
+ * @param isManualChange 是否为手动换题（用于区分自动生成下一题）
  */
-const getNextQuestion = async () => {
+const getNextQuestion = async (isManualChange = false) => {
   // 防止重复点击
   if (isGenerating.value) {
     ElMessage.warning('正在生成问题，请稍候...')
     return
+  }
+  
+  // 检查换题限制（仅当手动换题且已有问题时检查）
+  if (isManualChange && currentQuestion.value) {
+    if (!canChangeQuestion.value) {
+      ElMessage.warning(`每次面试最多只能换${MAX_QUESTION_CHANGES}次题目，请直接回答当前问题`)
+      return
+    }
+    
+    // 记录换题操作
+    questionChangeCount.value++
+    
+    if (questionChangeCount.value >= MAX_QUESTION_CHANGES) {
+      ElMessage.info('这是您最后一次换题机会，请珍惜使用')
+    }
   }
   
   try {
@@ -531,6 +566,12 @@ const submitAnswer = async () => {
         ElMessage.warning('可以手动点击"换一题"继续面试')
       })
     } else {
+      // 检查是否有已回答的问题
+      if (answeredQuestions.value.length === 0) {
+        ElMessage.warning('请至少回答一个问题后再结束面试')
+        return
+      }
+      
       ElMessage.success('恭喜！您已完成所有题目，正在自动结束面试...')
       // 自动结束面试
       setTimeout(async () => {
@@ -555,6 +596,22 @@ const submitAnswer = async () => {
 }
 
 // ========== 界面交互方法 ==========
+
+/**
+ * 获取换题按钮显示文本
+ */
+const getChangeQuestionButtonText = () => {
+  if (isGenerating.value) {
+    return '换题中...'
+  }
+  
+  if (questionChangeCount.value >= MAX_QUESTION_CHANGES) {
+    return `已用完换题次数(${questionChangeCount.value}/${MAX_QUESTION_CHANGES})`
+  }
+  
+  const remainingChanges = MAX_QUESTION_CHANGES - questionChangeCount.value
+  return `换一题(还可换${remainingChanges}次)`
+}
 
 /**
  * 查看所有已回答问题的评价结果
@@ -617,6 +674,12 @@ const goBack = () => {
  */
 const handleEndInterview = async () => {
   try {
+    // 检查是否已回答至少一个问题
+    if (answeredQuestions.value.length === 0) {
+      ElMessage.warning('请至少回答一个问题后再结束面试')
+      return
+    }
+
     await ElMessageBox.confirm(
       '确定要结束面试吗？结束后将生成面试报告。',
       '结束面试',
@@ -879,5 +942,10 @@ const handleEndInterview = async () => {
 .empty-state {
   text-align: center;
   padding: 60px 20px;
+}
+
+.text-warning {
+  color: #e6a23c !important;
+  font-weight: 600;
 }
 </style>
