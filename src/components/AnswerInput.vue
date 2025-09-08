@@ -219,7 +219,7 @@ const checkSpeechRecognitionSupport = () => {
     recognition.value.lang = 'zh-CN'
     
     // 监听识别结果
-    recognition.value.onresult = (event) => {
+    recognition.value.onresult = (event: any) => {
       let transcript = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         if (event.results[i].isFinal) {

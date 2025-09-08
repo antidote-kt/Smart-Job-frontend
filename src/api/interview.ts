@@ -150,8 +150,8 @@ export const getPositionsApi = (): Promise<JobPosition[]> => {
       category: item.category,
       level: item.level,
       description: item.description,
-      requirements: Array.isArray(item.requirements) ? item.requirements.filter(r => r && r.trim()) : [],
-      skills: Array.isArray(item.skills) ? item.skills.filter(s => s && s.trim()) : []
+      requirements: Array.isArray(item.requirements) ? item.requirements.filter((r: any) => r && r.trim()) : [],
+      skills: Array.isArray(item.skills) ? item.skills.filter((s: any) => s && s.trim()) : []
     }));
   });
 };

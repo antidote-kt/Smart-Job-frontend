@@ -37,10 +37,10 @@
             v-if="currentQuestion"
             :question-number="questionCount + 1"
             :question-text="displayQuestion"
-            :category="currentQuestion.category"
-            :difficulty="currentQuestion.difficulty"
-            :hints="currentQuestion.hints"
-            :keywords="currentQuestion.keywords"
+            :category="(currentQuestion as any).category"
+            :difficulty="(currentQuestion as any).difficulty"
+            :hints="(currentQuestion as any).hints"
+            :keywords="(currentQuestion as any).keywords"
           />
           
           <!-- 问题占位符 -->
@@ -324,7 +324,7 @@ const canChangeQuestion = computed(() => {
 /** 当前平均分数计算 */
 const currentAverageScore = computed(() => {
   const validScores = answeredQuestions.value
-    .map(q => q.score)
+    .map(q => (q as any).score)
     .filter(score => score !== undefined && score > 0)
   
   if (validScores.length === 0) return 0

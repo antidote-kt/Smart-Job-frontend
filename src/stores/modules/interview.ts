@@ -154,7 +154,7 @@ export const useInterviewStore = defineStore('interview', () => {
     } catch (error) {
       
       // 检查是否是网络连接问题，提供更友好的错误信息
-      if (error.message === 'Network Error' || error.code === 'NETWORK_ERROR') {
+      if ((error as any).message === 'Network Error' || (error as any).code === 'NETWORK_ERROR') {
         throw new Error('网络连接失败，请检查网络连接或后端服务是否正常运行')
       }
       throw error

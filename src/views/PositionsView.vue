@@ -328,6 +328,8 @@ const positionForm = reactive<JobPositionCreateDTO>({
   level: '',
   /** 职位描述 */
   description: '',
+  /** 职位要求列表 */
+  requirements: [''],
   /** 技能要求列表 */
   skills: ['']
 })

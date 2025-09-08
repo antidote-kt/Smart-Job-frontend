@@ -284,7 +284,7 @@ const filteredSessions = computed(() => {
   }
 
   // 按开始时间倒序排列
-  return result.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+  return result.sort((a, b) => new Date(b.startTime || '').getTime() - new Date(a.startTime || '').getTime())
 })
 
 // ========== 生命周期钩子 ==========
@@ -303,7 +303,7 @@ const loadSessions = async () => {
     isLoading.value = true
     await interviewStore.loadSessions()
   } catch (error) {
-    ElMessage.error(error.message || '加载面试记录失败，请检查网络连接')
+    ElMessage.error((error as any).message || '加载面试记录失败，请检查网络连接')
   } finally {
     isLoading.value = false
   }
