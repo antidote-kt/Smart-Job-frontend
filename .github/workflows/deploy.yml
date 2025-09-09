@@ -69,7 +69,7 @@ jobs:
           docker run -d \
             --name smartjob-frontend \
             --restart unless-stopped \
-            -p 80:80 \
+            -p 5173:80 \
             ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
             
           # 清理旧镜像
