@@ -41,6 +41,8 @@ jobs:
     - name: 推送 Docker 镜像
       if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
       run: |
+        docker tag smartjob-frontend:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:${{ github.sha }}
+        docker tag smartjob-frontend:latest ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
         docker push ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:${{ github.sha }}
         docker push ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
         
