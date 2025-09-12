@@ -58,9 +58,6 @@ jobs:
           # 登录 Docker
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           
-          # 确保网络存在（后端工作流已创建，但以防万一）
-          docker network create smartjob-network || true
-          
           # 拉取最新镜像
           docker pull ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
           
@@ -68,12 +65,10 @@ jobs:
           docker stop smartjob-frontend || true
           docker rm smartjob-frontend || true
           
-          # 启动新容器 - 加入自定义网络，使用网络别名
+          # 启动新容器 - 使用默认网络
           docker run -d \
             --name smartjob-frontend \
             --restart unless-stopped \
-            --network smartjob-network \
-            --network-alias smartjob-frontend \
             -p 5173:5173 \
             ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
             
