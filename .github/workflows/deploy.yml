@@ -65,11 +65,11 @@ jobs:
           docker stop smartjob-frontend || true
           docker rm smartjob-frontend || true
           
-          # 启动新容器 - 使用默认网络
+          # 启动新容器 - 使用host网络模式
           docker run -d \
             --name smartjob-frontend \
             --restart unless-stopped \
-            -p 5173:5173 \
+            --network host \
             ${{ secrets.DOCKER_USERNAME }}/smartjob-frontend:latest
             
           # 清理旧镜像
